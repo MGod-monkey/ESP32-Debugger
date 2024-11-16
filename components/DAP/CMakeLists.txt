@@ -7,5 +7,5 @@ set(COMPONENT_SRCS
 			"Source/swd_host.c"
 			"Source/error.c"
 			)
-set(COMPONENT_REQUIRES driver)
+set(COMPONENT_REQUIRES driver main)
 register_component()

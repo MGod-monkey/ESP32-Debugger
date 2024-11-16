@@ -33,10 +33,40 @@
 #include "web_server.h"
 #include "programmer.h"
 #include "protocol_examples_common.h"
+#include "wifi_configuration.h"
+
+#include "wifi_handle.h"
+#include "mdns.h"
 
 static const char *TAG = "main";
 static httpd_handle_t http_server = NULL;
 TaskHandle_t kDAPTaskHandle = NULL;
+
+void mdns_setup() {
+    // initialize mDNS
+    int ret;
+    ret = mdns_init();
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "mDNS initialize failed:%d", ret);
+        return;
+    }
+
+    // set mDNS hostname
+    ret = mdns_hostname_set(MDNS_HOSTNAME);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "mDNS set hostname failed:%d", ret);
+        return;
+    }
+    ESP_LOGI(TAG, "mDNS hostname set to: [%s]", MDNS_HOSTNAME);
+
+    // set default mDNS instance name
+    ret = mdns_instance_name_set(MDNS_INSTANCE);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "mDNS set instance name failed:%d", ret);
+        return;
+    }
+    ESP_LOGI(TAG, "mDNS instance name set to: [%s]", MDNS_INSTANCE);
+}
 
 extern "C" void tcp_server_task(void *pvParameters);
 extern "C" void DAP_Thread(void *pvParameters);
@@ -133,12 +163,23 @@ extern "C" void app_main(void)
 {
     bool ret = false;
 
+    // ESP_ERROR_CHECK(nvs_flash_init());
+    // ESP_ERROR_CHECK(esp_netif_init());
+    // ESP_ERROR_CHECK(esp_event_loop_create_default());
+    // ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, connect_handler, &http_server));
+    // ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, disconnect_handler, &http_server));
+    // ESP_ERROR_CHECK(example_connect());
     ESP_ERROR_CHECK(nvs_flash_init());
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, connect_handler, &http_server));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, disconnect_handler, &http_server));
-    ESP_ERROR_CHECK(example_connect());
+
+    #if (USE_UART_BRIDGE == 1)
+        uart_bridge_init();
+    #endif
+        wifi_init();
+        DAP_Setup();
+
+    #if (USE_MDNS == 1)
+        mdns_setup();
+    #endif
 
     tinyusb_config_t tusb_cfg = {
         .device_descriptor = NULL,
@@ -157,8 +198,6 @@ extern "C" void app_main(void)
         .callback_rx_wanted_char = NULL,
         .callback_line_state_changed = NULL,
         .callback_line_coding_changed = usb_cdc_set_line_codinig};
-
-    DAP_Setup();
 
     ESP_LOGI(TAG, "USB initialization");
 

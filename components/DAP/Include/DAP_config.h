@@ -42,6 +42,16 @@ This information includes:
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include <stdint.h>
+#include <string.h>
+
+#include "dap_configuration.h"
+#include "wifi_configuration.h"
+
+#include "cmsis_compiler.h"
+#include "gpio_op.h"
+#include "spi_switch.h"
+
 #if defined(__GNUC__) && !defined(__STATIC_FORCEINLINE)
 #define __STATIC_FORCEINLINE static inline __attribute__((always_inline))
 #endif
@@ -191,9 +201,19 @@ of the same I/O port. The following SWDIO I/O Pin functions are provided:
 
 
 // Configure DAP I/O pins ------------------------------
-#define PIN_SWDIO GPIO_NUM_8
-#define PIN_SWCLK GPIO_NUM_9
-#define PIN_nRESET GPIO_NUM_10
+// #define PIN_SWDIO GPIO_NUM_8
+// #define PIN_SWCLK GPIO_NUM_9
+// #define PIN_nRESET GPIO_NUM_10
+// #define PIN_LED_CONNECTED GPIO_NUM_17
+// #define PIN_LED_RUNNING GPIO_NUM_18
+
+#define PIN_SWDIO GPIO_NUM_11      // SPI MISO
+#define PIN_SWDIO_MOSI GPIO_NUM_11 // SPI MOSI
+#define PIN_SWCLK GPIO_NUM_12
+#define PIN_TDO GPIO_NUM_9        // device TDO -> Host Data Input
+#define PIN_TDI GPIO_NUM_10
+#define PIN_nTRST GPIO_NUM_14       // optional
+#define PIN_nRESET GPIO_NUM_13
 #define PIN_LED_CONNECTED GPIO_NUM_17
 #define PIN_LED_RUNNING GPIO_NUM_18
 
@@ -204,6 +224,25 @@ Configures the DAP Hardware I/O pins for JTAG mode:
 */
 __STATIC_INLINE void PORT_JTAG_SETUP(void)
 {
+  // set TCK, TMS pin
+
+  	// PIN_TDO output disable
+	gpio_ll_output_disable(&GPIO, PIN_TDO);
+	// PIN_TDO input enable
+	gpio_ll_input_enable(&GPIO, PIN_TDO);
+
+	// PIN_TDI output
+	gpio_ll_output_enable(&GPIO, PIN_TDI);
+	gpio_ll_od_disable(&GPIO, PIN_TDI);
+	gpio_ll_pulldown_dis(&GPIO, PIN_TDI);
+
+	gpio_ll_output_enable(&GPIO, PIN_nTRST);
+	gpio_ll_od_enable(&GPIO, PIN_nTRST);
+	gpio_ll_output_enable(&GPIO, PIN_nRESET);
+	gpio_ll_od_enable(&GPIO, PIN_nRESET);
+
+	GPIO_PULL_UP_ONLY_SET(PIN_nTRST);
+	GPIO_PULL_UP_ONLY_SET(PIN_nRESET);
 }
 
 /** Setup SWD I/O pins: SWCLK, SWDIO, and nRESET.
