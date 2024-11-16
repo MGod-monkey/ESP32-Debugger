@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Program Device</title>
+    <style>
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            display: flex;
+            height: 90%;
+            padding: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .content {
+            width: 600px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .form-group input {
+            width: 100%;
+            height: 100%;
+            padding: 10px;
+            font-size: 16px;
+            box-sizing: border-box;
+            border: 1px solid black;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-align: left;
+        }
+
+        .form-group select,
+        .progress-container progress {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        .form-group button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+        }
+    </style>
+</head>
+<script>
+    var programProgressTimer;
+
+    document.addEventListener("DOMContentLoaded", function () {
+        document.getElementById("offline-program-btn").addEventListener('click', offlineProgram);
+        document.getElementById("upload-program-btn").addEventListener('click', uploadProgram);
+        document.getElementById("upload-algorithm-btn").addEventListener('click', uploadAlgorithm);
+        document.getElementById("online-program-btn").addEventListener('click', onlineProgram);
+    });
+
+    function offlineProgram() {
+        var program = document.getElementById("offline-program").value;
+        programRequest(program, "offline", program.split('.').pop(), 0, offlineProgramResponseHandle);
+    }
+
+    function getFileById(id) {
+        let fileInput = document.getElementById(id).files;
+
+        if (fileInput.length == 0) {
+            alert("No file selected!");
+            return;
+        }
+
+        let name = fileInput[0].name;
+        if (name.length == 0) {
+            alert("File path on server is not set!");
+        } else if (name.indexOf(' ') >= 0) {
+            alert("File path on server cannot have spaces!");
+        } else if (name[name.length - 1] == '/') {
+            alert("File name not specified after path!");
+        } else if (fileInput[0].size > 10 * 1024 * 1024) {
+            alert("File size must be less than 10M!");
+        } else {
+            return fileInput[0];
+        }
+
+        return;
+    }
+
+    function onlineProgram() {
+        let file = getFileById("online-program");
+        if (file != undefined) {
+            console.log(file.name, file.name.split('.').pop());
+            programRequest("", "online", file.name.split('.').pop(), file.size, onlineProgramResponseHandle);
+        }
+    }
+
+    function onlineProgramResponseHandle(xhr) {
+        return function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                updateProgressBar(0);
+                /* Start uploading firmware */
+                let xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function () {
+                    console.log(xhttp.readyState);
+                    if (xhttp.readyState == 4) {
+                        if (xhttp.status == 200) {
+                            alert("程序烧录成功");
+                        } else if (xhttp.status == 0) {
+                            alert("Server closed the connection abruptly!");
+                        } else {
+                            alert(xhttp.status + " Error!\n" + xhttp.responseText);
+                        }
+                    }
+                    disable(false);
+                };
+
+                /* Read update progress */
+                xhttp.upload.addEventListener("progress", function (e) {
+                    if (e.lengthComputable) {
+                        updateProgressBar(Math.round((e.loaded * 100) / e.total));
+                    }
+                }, false);
+
+                xhttp.open("POST", "/api/online-program", true);
+                xhttp.send(getFileById("online-program"));
+            }
+        }
+    }
+
+    function getProgramProgress() {
+        var progressXhr = new XMLHttpRequest();
+        progressXhr.onreadystatechange = function () {
+            if (progressXhr.readyState === 4 && progressXhr.status === 200) {
+                var response = JSON.parse(progressXhr.responseText);
+                updateProgressBar(response.progress);
+
+                console.log(response.progress, response.status);
+
+                if (response.status === "idle" && response.progress != 100) {
+                    disable(false);
+                    clearInterval(programProgressTimer);
+                    alert("程序烧录失败");
+                }
+                else if (response.progress === 100) {
+                    clearInterval(programProgressTimer);
+                    disable(false);
+                }
+            }
+        };
+        progressXhr.open("GET", "/api/query?type=program-status", true);
+        progressXhr.send();
+    }
+
+    function disable(status) {
+        document.getElementById("online-program").disabled = status;
+        document.getElementById("online-program-btn").disabled = status;
+        document.getElementById("offline-program").disabled = status;
+        document.getElementById("offline-program-btn").disabled = status;
+        document.getElementById("upload-program").disabled = status;
+        document.getElementById("upload-program-btn").disabled = status;
+        document.getElementById("upload-algorithm").disabled = status;
+        document.getElementById("upload-algorithm-btn").disabled = status;
+    }
+
+    function offlineProgramResponseHandle(xhr) {
+        return function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                updateProgressBar(0);
+                programProgressTimer = setInterval(getProgramProgress, 300);
+                disable(true);
+            }
+        }
+    }
+
+    function programRequest(program_path, program_mode, program_format, program_size, response_handle) {
+        var flash_addr = parseInt(document.getElementById("flash-address").value, 16);
+        var ram_addr = parseInt(document.getElementById("ram-address").value, 16);
+        var algorithm = document.getElementById("algorithm").value;
+        var xhr = new XMLHttpRequest();
+
+        if (program_format != "bin" && program_format != "hex") {
+            alert("文件格式错误");
+            return;
+        }
+
+        if (isNaN(flash_addr) && program_format === "bin") {
+            alert("二进制文件必须提供Flash写入地址");
+            return;
+        }
+
+        xhr.open("POST", "/program", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onreadystatechange = response_handle(xhr);
+        xhr.send(JSON.stringify({
+            program_mode: program_mode,
+            format: program_format,
+            total_size: program_size,
+            flash_addr: flash_addr,
+            ram_addr: ram_addr,
+            algorithm: algorithm,
+            program: program_path
+        }));
+    }
+
+    function uploadProgram() {
+        let file = getFileById("upload-program");
+        if (file != undefined) {
+            let xhttp = new XMLHttpRequest();
+            disable(true);
+
+            xhttp.onreadystatechange = function () {
+                if (xhttp.readyState == 4) {
+                    if (xhttp.status == 200) {
+                        addOptionToSelect(document.getElementById("offline-program"), file.name);
+                        document.getElementById("offline-program").value = file.name;
+                        alert("程序上传成功");
+                    } else if (xhttp.status == 0) {
+                        alert("Server closed the connection abruptly!");
+                    } else {
+                        alert(xhttp.status + " Error!\n" + xhttp.responseText);
+                    }
+                }
+                disable(false);
+            };
+
+            xhttp.upload.addEventListener("progress", function (e) {
+                if (e.lengthComputable) {
+                    updateProgressBar(Math.round((e.loaded * 100) / e.total));
+                }
+            }, false);
+
+            xhttp.open("POST", "/api/upload?location=program&overwrite=true&name=" + file.name, true);
+            xhttp.send(file);
+        }
+    }
+
+    function uploadAlgorithm() {
+        let file = getFileById("upload-algorithm");
+        if (file != undefined) {
+            disable(true);
+
+            let xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function () {
+                if (xhttp.readyState == 4) {
+                    if (xhttp.status == 200) {
+                        alert("算法上传成功");
+                        addOptionToSelect(document.getElementById("algorithm"), file.name);
+                        document.getElementById("algorithm").value = file.name;
+                    } else if (xhttp.status == 0) {
+                        alert("Server closed the connection abruptly!");
+                    } else {
+                        alert(xhttp.status + " Error!\n" + xhttp.responseText);
+                    }
+                }
+                disable(false);
+            };
+
+            xhttp.upload.addEventListener("progress", function (e) {
+                if (e.lengthComputable) {
+                    updateProgressBar(Math.round((e.loaded * 100) / e.total));
+                }
+            }, false);
+
+            xhttp.open("POST", "/api/upload?location=algorithm&overwrite=true&name=" + file.name, true);
+            xhttp.send(file);
+        }
+    }
+
+    function addOptionToSelect(select, name) {
+        var option = document.createElement("option");
+        option.value = name;
+        option.text = name;
+        select.appendChild(option);
+    }
+
+    function updateProgressBar(progress) {
+        var progressBar = document.getElementById("progress");
+        progressBar.value = progress;
+    }
+</script>
