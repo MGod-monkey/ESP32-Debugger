@@ -30,7 +30,6 @@
 #include "web_handler.h"
 #include "usb_cdc_handler.h"
 #include "esp_http_server.h"
-#include "web_server.h"
 #include "programmer.h"
 #include "protocol_examples_common.h"
 #include "wifi_configuration.h"
@@ -39,8 +38,8 @@
 #include "mdns.h"
 
 static const char *TAG = "main";
-static httpd_handle_t http_server = NULL;
 TaskHandle_t kDAPTaskHandle = NULL;
+extern httpd_handle_t http_server;
 
 void mdns_setup() {
     // initialize mDNS
@@ -149,27 +148,12 @@ extern "C" void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_r
     tud_hid_report(0, s_tx_buf, sizeof(s_tx_buf));
 }
 
-static void disconnect_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
-{
-    web_server_stop((httpd_handle_t *)arg);
-}
-
-static void connect_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
-{
-    web_server_init((httpd_handle_t *)arg);
-}
-
 extern "C" void app_main(void)
 {
     bool ret = false;
 
-    // ESP_ERROR_CHECK(nvs_flash_init());
-    // ESP_ERROR_CHECK(esp_netif_init());
-    // ESP_ERROR_CHECK(esp_event_loop_create_default());
-    // ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, connect_handler, &http_server));
-    // ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, disconnect_handler, &http_server));
-    // ESP_ERROR_CHECK(example_connect());
     ESP_ERROR_CHECK(nvs_flash_init());
+    // ESP_ERROR_CHECK(example_connect());
 
     #if (USE_UART_BRIDGE == 1)
         uart_bridge_init();
@@ -201,7 +185,12 @@ extern "C" void app_main(void)
 
     ESP_LOGI(TAG, "USB initialization");
 
+    // ret = msc_dick_mount(CONFIG_TINYUSB_MSC_MOUNT_PATH);
     ret = msc_dick_mount(CONFIG_TINYUSB_MSC_MOUNT_PATH);
+    if (!ret) {
+        ESP_LOGE(TAG, "Failed to mount MSC disk");
+        return;
+    }
     tusb_cfg.configuration_descriptor = get_configuration_descriptor(ret);
     tusb_cfg.string_descriptor = get_string_descriptor(ret);
     tusb_cfg.string_descriptor_count = get_string_descriptor_count();

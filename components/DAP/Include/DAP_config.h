@@ -81,7 +81,7 @@ This information includes:
 /// Indicate that JTAG communication mode is available at the Debug Port.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
 #ifndef DAP_JTAG
-#define DAP_JTAG                0               ///< JTAG Mode: 1 = available, 0 = not available.
+#define DAP_JTAG                1               ///< JTAG Mode: 1 = available, 0 = not available.
 #endif
 
 /// Configure maximum number of JTAG devices on the scan chain connected to the Debug Access Port.

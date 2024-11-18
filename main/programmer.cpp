@@ -23,6 +23,7 @@ prog_err_def programmer_request_handle(char *buf, int len)
 
     if (s_data.is_busy())
     {
+        ESP_LOGW(TAG, "Programmer is busy");
         return PROG_ERR_BUSY;
     }
 
@@ -73,22 +74,28 @@ static void programmer_task(void *pvParameters)
     for (;;)
     {
         evt = obj.wait_event();
+        ESP_LOGI(TAG, "Received event: %d", evt);
 
         switch (evt)
         {
         case PROG_EVT_REQUEST:
+            ESP_LOGI(TAG, "Handling PROG_EVT_REQUEST");
             s_prog->request_handle(obj);
             break;
         case PROG_EVT_PROGRAM_START:
+            ESP_LOGI(TAG, "Handling PROG_EVT_PROGRAM_START");
             s_prog->program_start_handle(obj);
             break;
         case PROG_EVT_PROGRAM_TIMEOUT:
+            ESP_LOGI(TAG, "Handling PROG_EVT_PROGRAM_TIMEOUT");
             s_prog->program_timeout_handle(obj);
             break;
         case PROG_EVT_PROGRAM_DATA_RECVED:
+            ESP_LOGI(TAG, "Handling PROG_EVT_PROGRAM_DATA_RECVED");
             s_prog->program_data_handle(obj);
             break;
         default:
+            ESP_LOGW(TAG, "Unknown event: %d", evt);
             break;
         }
     }
@@ -104,6 +111,7 @@ void programmer_init(void)
 
     s_data.init();
     xTaskCreate(programmer_task, "programmer", 1024 * 4, &s_data, 2, NULL);
+    ESP_LOGI(TAG, "Prograprogrammer_taskmmer initialized");
 }
 
 void programmer_get_status(char *buf, int size, int &encode_len)

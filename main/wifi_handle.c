@@ -7,6 +7,8 @@
 #include "wifi_configuration.h"
 #include "uart_bridge.h"
 
+#include "web_server.h"
+
 #include "gpio_op.h"
 
 #include "freertos/FreeRTOS.h"
@@ -27,6 +29,7 @@
 
 static const char *TAG = "wifi";
 static EventGroupHandle_t wifi_event_group;
+httpd_handle_t http_server = NULL;
 static esp_netif_t *sta_netif = NULL;
 static int ssid_index = 0;
 
@@ -115,6 +118,16 @@ static void wait_for_ip(void)
     ESP_LOGI(TAG, "Connected to AP");
 }
 
+static void disconnect_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+{
+    web_server_stop((httpd_handle_t *)arg);
+}
+
+static void connect_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+{
+    web_server_init((httpd_handle_t *)arg);
+}
+
 void wifi_init(void)
 {
     GPIO_FUNCTION_SET(PIN_LED_WIFI_STATUS);
@@ -123,6 +136,10 @@ void wifi_init(void)
     // 初始化底层TCP/IP栈
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, connect_handler, &http_server));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, disconnect_handler, &http_server));
+    // ESP_ERROR_CHECK(esp_netif_init());
+    // ESP_ERROR_CHECK(esp_event_loop_create_default());
     sta_netif = esp_netif_create_default_wifi_sta();
 
 #if (USE_STATIC_IP == 1)

@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+extern httpd_handle_t http_server;
+
 void wifi_init(void);
 
 #ifdef __cplusplus
