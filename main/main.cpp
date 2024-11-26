@@ -191,18 +191,18 @@ extern "C" void app_main(void)
         ESP_LOGE(TAG, "Failed to mount MSC disk");
         return;
     }
-    tusb_cfg.configuration_descriptor = get_configuration_descriptor(ret);
-    tusb_cfg.string_descriptor = get_string_descriptor(ret);
+    tusb_cfg.configuration_descriptor = get_configuration_descriptor(false);
+    tusb_cfg.string_descriptor = get_string_descriptor(false);
     tusb_cfg.string_descriptor_count = get_string_descriptor_count();
     tusb_cfg.device_descriptor = get_device_descriptor();
 
     ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
-    ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
+    // ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
 
     programmer_init();
     cdc_uart_init(UART_NUM_1, GPIO_NUM_13, GPIO_NUM_14, 115200);
     cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, usb_cdc_send_to_host, (void *)TINYUSB_CDC_ACM_0);
-    cdc_uart_register_rx_handler(CDC_UART_WEB_HANDLER, web_send_to_clients, &http_server);
+    // cdc_uart_register_rx_handler(CDC_UART_WEB_HANDLER, web_send_to_clients, &http_server);
     ESP_LOGI(TAG, "USB initialization DONE");
 
     // Specify the usbip server task
