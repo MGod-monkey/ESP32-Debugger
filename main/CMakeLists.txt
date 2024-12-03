@@ -1,3 +1,5 @@
+set(CMAKE_CXX_STANDARD 17)  # 或其他C++标准版本
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 idf_component_register(SRCS "main.cpp" 
                         "cdc_uart.c"
                         "msc_disk.c"
@@ -23,3 +25,5 @@ idf_component_register(SRCS "main.cpp"
                         "../html/favicon.ico"
                         "../html/program.html"
                         "../html/webserial.html")
+
+target_compile_options(${COMPONENT_TARGET} PRIVATE -std=gnu++17)

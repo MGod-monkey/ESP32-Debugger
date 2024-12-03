@@ -29,7 +29,7 @@
 
 static const char *TAG = "wifi";
 static EventGroupHandle_t wifi_event_group;
-httpd_handle_t http_server = NULL;
+// httpd_handle_t http_server = NULL;
 static esp_netif_t *sta_netif = NULL;
 static int ssid_index = 0;
 
@@ -134,12 +134,12 @@ void wifi_init(void)
     GPIO_SET_DIRECTION_NORMAL_OUT(PIN_LED_WIFI_STATUS);
 
     // 初始化底层TCP/IP栈
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, connect_handler, &http_server));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, disconnect_handler, &http_server));
     // ESP_ERROR_CHECK(esp_netif_init());
     // ESP_ERROR_CHECK(esp_event_loop_create_default());
+    // ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, connect_handler, &http_server));
+    // ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, disconnect_handler, &http_server));
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
     sta_netif = esp_netif_create_default_wifi_sta();
 
 #if (USE_STATIC_IP == 1)
