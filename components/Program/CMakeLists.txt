@@ -12,4 +12,12 @@ set(COMPONENT_SRCS
             "src/stream_programmer.cpp"
 			)
 set(COMPONENT_REQUIRES fatfs DAP)
+# 添加以下行来启用 C++ 支持
+set(COMPONENT_REQUIRES "${COMPONENT_REQUIRES}" esp_common)
+set(COMPONENT_PRIV_REQUIRES "")
+
+# 设置 C++ 标准版本（如 11、14 或 17）
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 register_component()

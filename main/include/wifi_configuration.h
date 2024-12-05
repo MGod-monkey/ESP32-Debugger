@@ -15,7 +15,7 @@ static struct {
     const char *ssid;
     const char *password;
 } wifi_list[] __attribute__((unused)) = {
-    {.ssid = "ESP0000", .password = "1234567890"},
+    {.ssid = "MGodmonkey", .password = "1234567890"},
     {.ssid = "DAP", .password = "12345678"},
     // Add your WAP like this:
     // {.ssid = "your ssid", .password = "your password"},
@@ -27,21 +27,18 @@ static struct {
 // Use the address "dap.local" to access the device
 #define MDNS_HOSTNAME "dap"
 #define MDNS_INSTANCE "DAP mDNS"
-//
 
 #define USE_STATIC_IP 0
 // If you don't want to specify the ip configuration, then ignore the following items.
 #define DAP_IP_ADDRESS "192.169.0.139"
 #define DAP_IP_GATEWAY "92.169.0.1"
 #define DAP_IP_NETMASK "255.255.255.0"
-//
 
 #define USE_OTA              0
 
 #define USE_UART_BRIDGE      0
 #define UART_BRIDGE_PORT     1234
 #define UART_BRIDGE_BAUDRATE 74880
-//
 
 // DO NOT CHANGE
 #define USE_TCP_NETCONN 0

@@ -593,7 +593,7 @@ esp_err_t web_query_handler(httpd_req_t *req)
 
     if (!strcmp("program-status", type))
     {
-        programmer_get_status((char *)data->buf, CONFIG_HTTPD_RESP_BUF_SIZE, encode_len);
+        programmer_get_status((char *)data->buf, CONFIG_HTTPD_RESP_BUF_SIZE, &encode_len);
         httpd_resp_send_chunk(req, (char *)data->buf, encode_len);
         httpd_resp_send_chunk(req, NULL, 0);
     }

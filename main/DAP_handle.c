@@ -16,8 +16,8 @@
 
 #include "main/usbip_server.h"
 #include "main/DAP_handle.h"
-#include "main/dap_configuration.h"
-#include "main/wifi_configuration.h"
+#include "dap_configuration.h"
+#include "wifi_configuration.h"
 
 #include "components/USBIP/usb_descriptor.h"
 #include "components/DAP/Include/DAP.h"

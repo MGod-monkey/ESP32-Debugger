@@ -8,6 +8,7 @@ extern "C" {
 // extern httpd_handle_t http_server;
 
 void wifi_init(void);
+void mdns_setup(void);
 
 #ifdef __cplusplus
 }

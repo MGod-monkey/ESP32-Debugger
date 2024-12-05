@@ -39,20 +39,18 @@
     #define DAP_PACKET_SIZE 255U // 255 for USB HID
 #endif
 
-// /**
-//  * @brief Enable this option to force a software reset when resetting the device
-//  *
-//  * Some debugger software (e.g. Keil) does not perform a software reset when
-//  * resetting the target. When this option enabled, a soft reset is attempted
-//  * when DAP_ResetTarget() is performed. This is done by writing to the
-//  * SYSRESETREQ field of the AIRCR register in the Cortex-M architecture.
-//  *
-//  * This should work for ARMv6-m, ARMv7-m and ARMv8-m architecture. However,
-//  * there is no guarantee that the reset operation will be executed correctly.
-//  *
-//  * Only available for SWD.
-//  *
-//  */
-// #define USE_FORCE_SYSRESETREQ_AFTER_FLASH 0
+/**
+ * @brief 接收端模式
+ * SINGLE_MODE=1: 单接收端模式     
+ *      有线模式：PC->数据线->接收端->SWD/JTAG
+ *      无线模式：PC->elaphureLink->TCP/IP->接收端->SWD/JTAG
+ *      无线串口模式：PC->WebSocket->TCP/IP->接收端->串口
+ * SINGLE_MODE=0: 发送端+接收端模式
+ *     有线模式：PC->数据线->发送端->数据线->接收端->SWD/JTAG
+ *     无线模式：PC->发送端->TCP/IP->接收端->SWD/JTAG
+ *     无线串口模式：PC->发送端->TCP/IP->接收端->串口
+ */
+
+#define SINGLE_MODE 1
 
 #endif

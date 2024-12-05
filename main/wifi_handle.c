@@ -1,12 +1,8 @@
+#include "main.h"
 #include "sdkconfig.h"
-
-#include <string.h>
-#include <stdint.h>
 #include <sys/param.h>
-
 #include "wifi_configuration.h"
 #include "uart_bridge.h"
-
 #include "web_server.h"
 
 #include "gpio_op.h"
@@ -21,11 +17,11 @@
 #include "esp_netif.h"
 #include "lwip/ip4_addr.h"
 
-#if defined CONFIG_IDF_TARGET_ESP32S3
-    #define PIN_LED_WIFI_STATUS 4
-#else
-    #error unknown hardware
-#endif
+// #if defined CONFIG_IDF_TARGET_ESP32S3
+//     #define PIN_LED_WIFI_STATUS 4
+// #else
+//     #error unknown hardware
+// #endif
 
 static const char *TAG = "wifi";
 static EventGroupHandle_t wifi_event_group;
@@ -37,6 +33,32 @@ const int IPV4_GOTIP_BIT = BIT0;
 #ifdef CONFIG_EXAMPLE_IPV6
 const int IPV6_GOTIP_BIT = BIT1;
 #endif
+
+void mdns_setup(void) {
+    // initialize mDNS
+    int ret;
+    ret = mdns_init();
+    if (ret != ESP_OK) {
+        log_printf(TAG, LOG_WARN,  "mDNS initialize failed:%d", ret);
+        return;
+    }
+
+    // set mDNS hostname
+    ret = mdns_hostname_set(MDNS_HOSTNAME);
+    if (ret != ESP_OK) {
+        log_printf(TAG, LOG_WARN,  "mDNS set hostname failed:%d", ret);
+        return;
+    }
+    log_printf(TAG, LOG_INFO,  "mDNS hostname set to: [%s]", MDNS_HOSTNAME);
+
+    // set default mDNS instance name
+    ret = mdns_instance_name_set(MDNS_INSTANCE);
+    if (ret != ESP_OK) {
+        log_printf(TAG, LOG_WARN,  "mDNS set instance name failed:%d", ret);
+        return;
+    }
+    log_printf(TAG, LOG_INFO,  "mDNS instance name set to: [%s]", MDNS_INSTANCE);
+}
 
 static void ssid_change(void)
 {
@@ -75,7 +97,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
             case WIFI_EVENT_STA_CONNECTED:
                 break;
             case WIFI_EVENT_STA_DISCONNECTED:
-                GPIO_SET_LEVEL_LOW(PIN_LED_WIFI_STATUS);
+                // GPIO_SET_LEVEL_LOW(PIN_LED_WIFI_STATUS);
                 ESP_LOGI(TAG, "Disconnect reason : %d", ((wifi_event_sta_disconnected_t*)event_data)->reason);
                 ssid_change();
                 esp_wifi_connect();
@@ -90,7 +112,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
     } else if (event_base == IP_EVENT) {
         switch (event_id) {
             case IP_EVENT_STA_GOT_IP:
-                GPIO_SET_LEVEL_HIGH(PIN_LED_WIFI_STATUS);
+                // GPIO_SET_LEVEL_HIGH(PIN_LED_WIFI_STATUS);
                 ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
                 ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
                 xEventGroupSetBits(wifi_event_group, IPV4_GOTIP_BIT);
@@ -130,8 +152,8 @@ static void connect_handler(void *arg, esp_event_base_t event_base, int32_t even
 
 void wifi_init(void)
 {
-    GPIO_FUNCTION_SET(PIN_LED_WIFI_STATUS);
-    GPIO_SET_DIRECTION_NORMAL_OUT(PIN_LED_WIFI_STATUS);
+    // GPIO_FUNCTION_SET(PIN_LED_WIFI_STATUS);
+    // GPIO_SET_DIRECTION_NORMAL_OUT(PIN_LED_WIFI_STATUS);
 
     // 初始化底层TCP/IP栈
     // ESP_ERROR_CHECK(esp_netif_init());

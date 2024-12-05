@@ -114,11 +114,12 @@ void programmer_init(void)
     ESP_LOGI(TAG, "Prograprogrammer_taskmmer initialized");
 }
 
-void programmer_get_status(char *buf, int size, int &encode_len)
+void programmer_get_status(char *buf, int size, int *encode_len)
 {
-    encode_len = snprintf(buf, size, "{\"progress\": %d, \"status\": \"%s\"}", s_data.get_progress(), s_data.is_busy() ? ("busy") : ("idle"));
+    *encode_len = snprintf(buf, size, "{\"progress\": %d, \"status\": \"%s\"}", 
+                          s_data.get_progress(), 
+                          s_data.is_busy() ? "busy" : "idle");
 }
-
 prog_err_def programmer_write_data(uint8_t *data, int len)
 {
     prog_data_swap_t swap = {data, len};

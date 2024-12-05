@@ -1,15 +1,20 @@
-/*
- * Copyright (c) 2023-2023, lihongquan
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * Change Logs:
- * Date           Author       Notes
- * 2023-9-8      lihongquan   add license declaration
- */
-#pragma once
+#ifndef __ALGO_EXTRACTOR_H__
+#define __ALGO_EXTRACTOR_H__
 
-#include <cstdint>
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// 包含 C 头文件
+#include <stdint.h>
+#include <stdio.h>
+
+#ifdef __cplusplus
+}
+#endif
+
+// C++ 相关头文件和代码
+#ifdef __cplusplus
 #include <string>
 #include <vector>
 #include <map>
@@ -45,3 +50,7 @@ public:
     AlgoExtractor();
     bool extract(const std::string &path, FlashIface::program_target_t &target, FlashIface::target_cfg_t &cfg, uint32_t ram_begin = 0x20000000);
 };
+
+#endif
+
+#endif /* __ALGO_EXTRACTOR_H__ */

@@ -5,7 +5,7 @@
 #include "main/kcp_server.h"
 #include "main/tcp_netconn.h"
 #include "main/DAP_handle.h"
-#include "main/wifi_configuration.h"
+#include "wifi_configuration.h"
 
 #include "components/USBIP/usb_handle.h"
 #include "components/USBIP/usb_descriptor.h"

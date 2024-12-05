@@ -50,6 +50,7 @@ This information includes:
 
 #include "cmsis_compiler.h"
 #include "gpio_op.h"
+#include "hal_gpio.h"
 #include "spi_switch.h"
 
 #if defined(__GNUC__) && !defined(__STATIC_FORCEINLINE)
@@ -107,7 +108,7 @@ This information includes:
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. Typical vales are 64 for Full-speed USB HID or WinUSB,
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
-#define DAP_PACKET_SIZE         64              ///< Specifies Packet Size in bytes.
+// #define DAP_PACKET_SIZE         64              ///< Specifies Packet Size in bytes.
 
 /// Maximum Package Buffers for Command and Response data.
 /// This configuration settings is used to optimize the communication performance with the
@@ -204,18 +205,16 @@ of the same I/O port. The following SWDIO I/O Pin functions are provided:
 // #define PIN_SWDIO GPIO_NUM_8
 // #define PIN_SWCLK GPIO_NUM_9
 // #define PIN_nRESET GPIO_NUM_10
-// #define PIN_LED_CONNECTED GPIO_NUM_17
-// #define PIN_LED_RUNNING GPIO_NUM_18
 
-#define PIN_SWDIO GPIO_NUM_11      // SPI MISO
-#define PIN_SWDIO_MOSI GPIO_NUM_11 // SPI MOSI
-#define PIN_SWCLK GPIO_NUM_12
-#define PIN_TDO GPIO_NUM_9        // device TDO -> Host Data Input
-#define PIN_TDI GPIO_NUM_10
-#define PIN_nTRST GPIO_NUM_14       // optional
-#define PIN_nRESET GPIO_NUM_13
-#define PIN_LED_CONNECTED GPIO_NUM_17
-#define PIN_LED_RUNNING GPIO_NUM_18
+#define PIN_SWDIO 			GPIO_DAP_SWD_MOSI
+#define PIN_SWDIO_MOSI 		GPIO_DAP_SWD_MOSI
+#define PIN_SWCLK 			GPIO_DAP_SWD_CLK
+#define PIN_TDO 			GPIO_DAP_TDO        // device TDO -> Host Data Input
+#define PIN_TDI 			GPIO_DAP_TDI
+#define PIN_nTRST 			GPIO_DAP_JTAG_nTRST       // optional
+#define PIN_nRESET 			GPIO_DAP_JTAG_nRESET
+// #define PIN_LED_CONNECTED GPIO_NUM_17
+#define PIN_LED_RUNNING 	GPIO_LED_RUNNING_STATUS
 
 /** Setup JTAG I/O pins: TCK, TMS, TDI, TDO, nTRST, and nRESET.
 Configures the DAP Hardware I/O pins for JTAG mode:
@@ -464,22 +463,22 @@ It is recommended to provide the following LEDs for status indication:
  - Running LED: is active when the debugger has put the target device into running state.
 */
 
-/** Debug Unit: Set status of Connected LED.
-\param bit status of the Connect LED.
-           - 1: Connect LED ON: debugger is connected to CMSIS-DAP Debug Unit.
-           - 0: Connect LED OFF: debugger is not connected to CMSIS-DAP Debug Unit.
-*/
-__STATIC_INLINE void LED_CONNECTED_OUT(uint32_t bit)
-{
-	if (bit)
-	{
-		WRITE_PERI_REG(GPIO_OUT_W1TS_REG, (0x1 << PIN_LED_CONNECTED));
-	}
-	else
-	{
-		WRITE_PERI_REG(GPIO_OUT_W1TC_REG, (0x1 << PIN_LED_CONNECTED));
-	}
-}
+// /** Debug Unit: Set status of Connected LED.
+// \param bit status of the Connect LED.
+//            - 1: Connect LED ON: debugger is connected to CMSIS-DAP Debug Unit.
+//            - 0: Connect LED OFF: debugger is not connected to CMSIS-DAP Debug Unit.
+// */
+// __STATIC_INLINE void LED_CONNECTED_OUT(uint32_t bit)
+// {
+// 	if (bit)
+// 	{
+// 		WRITE_PERI_REG(GPIO_OUT_W1TS_REG, (0x1 << PIN_LED_CONNECTED));
+// 	}
+// 	else
+// 	{
+// 		WRITE_PERI_REG(GPIO_OUT_W1TC_REG, (0x1 << PIN_LED_CONNECTED));
+// 	}
+// }
 
 /** Debug Unit: Set status Target Running LED.
 \param bit status of the Target Running LED.
@@ -547,8 +546,8 @@ __STATIC_INLINE void DAP_SETUP(void)
 	gpio_set_direction(PIN_nRESET, GPIO_MODE_INPUT_OUTPUT);
 	gpio_set_level(PIN_nRESET, 1);
 	// Configure: LED as output (turned off)
-	gpio_set_direction(PIN_LED_CONNECTED, GPIO_MODE_OUTPUT);
-	LED_CONNECTED_OUT(0);
+	// gpio_set_direction(PIN_LED_CONNECTED, GPIO_MODE_OUTPUT);
+	// LED_CONNECTED_OUT(0);
 	gpio_set_direction(PIN_LED_RUNNING, GPIO_MODE_OUTPUT);
 	LED_RUNNING_OUT(0);
 }

@@ -205,7 +205,7 @@ static uint32_t DAP_HostStatus(const uint8_t *request, uint8_t *response) {
 
   switch (*request) {
     case DAP_DEBUGGER_CONNECTED:
-      LED_CONNECTED_OUT((*(request+1) & 1U));
+      // LED_CONNECTED_OUT((*(request+1) & 1U));
       break;
     case DAP_TARGET_RUNNING:
       LED_RUNNING_OUT((*(request+1) & 1U));

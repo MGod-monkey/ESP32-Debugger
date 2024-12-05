@@ -1,4 +1,9 @@
-#pragma once
+#ifndef __PROG_DATA_H__
+#define __PROG_DATA_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -6,7 +11,10 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/message_buffer.h"
-#include "algo_extractor.h"
+
+#ifdef __cplusplus
+}
+#endif
 
 typedef enum
 {
@@ -49,17 +57,6 @@ typedef enum
 
 typedef struct
 {
-    prog_mode_def mode;
-    prog_format_def format;
-    uint32_t flash_addr;
-    uint32_t ram_addr;
-    uint32_t total_size;
-    std::string algorithm;
-    std::string program;
-} prog_req_t;
-
-typedef struct
-{
     char *data;
     int len;
 } prog_request_swap_t;
@@ -70,6 +67,21 @@ typedef struct
     int len;
 } prog_data_swap_t;
 
+
+#ifdef __cplusplus
+
+#include "algo_extractor.h"
+
+typedef struct
+{
+    prog_mode_def mode;
+    prog_format_def format;
+    uint32_t flash_addr;
+    uint32_t ram_addr;
+    uint32_t total_size;
+    std::string algorithm;
+    std::string program;
+} prog_req_t;
 class ProgData
 {
 private:
@@ -110,3 +122,7 @@ public:
 
     static prog_err_def request_decode(prog_req_t &request, char *buf, int len);
 };
+
+#endif
+
+#endif /* __PROG_DATA_H_ */
