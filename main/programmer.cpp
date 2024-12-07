@@ -101,6 +101,8 @@ static void programmer_task(void *pvParameters)
     }
 }
 
+TaskHandle_t programmer_task_handle;  // 定义任务句柄
+
 void programmer_init(void)
 {
     if (FileProgrammer::is_exist(CONFIG_PROGRAMMER_ALGORITHM_ROOT) != true)
@@ -110,8 +112,14 @@ void programmer_init(void)
         mkdir(CONFIG_PROGRAMMER_PROGRAM_ROOT, 0777);
 
     s_data.init();
-    xTaskCreate(programmer_task, "programmer", 1024 * 4, &s_data, 2, NULL);
+    xTaskCreate(programmer_task, "programmer", 1024 * 4, &s_data, 2, &programmer_task_handle);
     ESP_LOGI(TAG, "Prograprogrammer_taskmmer initialized");
+}
+
+void programmer_stop_task(void)
+{
+    vTaskDelete(programmer_task_handle);
+    ESP_LOGI(TAG, "Prograprogrammer_taskmmer close");
 }
 
 void programmer_get_status(char *buf, int size, int *encode_len)

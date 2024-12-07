@@ -9,6 +9,7 @@ extern "C" {
 
 // C 接口函数声明
 void programmer_init(void);
+void programmer_stop_task(void);
 prog_err_def programmer_request_handle(char *buf, int len);
 prog_err_def programmer_write_data(uint8_t *data, int len);
 

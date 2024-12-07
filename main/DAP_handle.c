@@ -21,8 +21,7 @@
 
 #include "components/USBIP/usb_descriptor.h"
 #include "components/DAP/Include/DAP.h"
-#include 
-//#include "components/DAP/include/swo.h"
+#include "components/DAP/Include/DAP_config.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"

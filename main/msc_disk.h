@@ -13,7 +13,8 @@
 extern "C" {
 #endif
 
-bool msc_dick_mount(const char *path);
+bool msc_disk_mount(const char *path);
+bool msc_disk_unmount(void);
 
 #ifdef __cplusplus
 }

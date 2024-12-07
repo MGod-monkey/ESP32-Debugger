@@ -1,13 +1,3 @@
-/*
- * Copyright (c) 2023-2023, lihongquan
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * Change Logs:
- * Date           Author       Notes
- * 2023-9-8      lihongquan   add license declaration
- */
-
 #include "tinyusb.h"
 #include "tusb_msc_storage.h"
 #include <dirent.h>
@@ -22,6 +12,10 @@
 static const char *TAG = "msc_disk";
 
 #ifdef CONFIG_MSC_STORAGE_MEDIA_SPIFLASH
+// #include "wl.h" // 确保包含了wear leveling API
+
+static wl_handle_t wl_handle = WL_INVALID_HANDLE; // 全局变量，便于卸载时访问
+
 static esp_err_t storage_init_spiflash(wl_handle_t *wl_handle)
 {
     ESP_LOGI(TAG, "Initializing wear levelling");
@@ -37,6 +31,10 @@ static esp_err_t storage_init_spiflash(wl_handle_t *wl_handle)
 }
 #else
 
+#include "sdmmc_cmd.h" // 确保包含了SDMMC API
+
+static sdmmc_card_t *card = NULL; // 全局变量，便于卸载时访问
+
 static esp_err_t storage_init_sdmmc(sdmmc_card_t **card)
 {
     esp_err_t ret = ESP_FAIL;
@@ -45,16 +43,9 @@ static esp_err_t storage_init_sdmmc(sdmmc_card_t **card)
 
     ESP_LOGI(TAG, "Initializing SDCard");
 
-    // By default, SD card frequency is initialized to SDMMC_FREQ_DEFAULT (20MHz)
-    // For setting a specific frequency, use host.max_freq_khz (range 400kHz - 40MHz for SDMMC)
-    // Example: for fixed frequency of 10MHz, use host.max_freq_khz = 10000;
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
 
-    // This initializes the slot without card detect (CD) and write protect (WP) signals.
-    // Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.
     sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
-
-    // For SD Card, set bus width to use
     slot_config.width = 4;
 
     slot_config.clk = GPIO_NUM_36;
@@ -64,12 +55,8 @@ static esp_err_t storage_init_sdmmc(sdmmc_card_t **card)
     slot_config.d2 = GPIO_NUM_33;
     slot_config.d3 = GPIO_NUM_34;
 
-    // Enable internal pullups on enabled pins. The internal pullups
-    // are insufficient however, please make sure 10k external pullups are
-    // connected on the bus. This is for debug / example purpose only.
     slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
 
-    // not using ff_memalloc here, as allocation in internal RAM is preferred
     sd_card = (sdmmc_card_t *)malloc(sizeof(sdmmc_card_t));
     ESP_GOTO_ON_FALSE(sd_card, ESP_ERR_NO_MEM, clean, TAG, "could not allocate new sdmmc_card_t");
 
@@ -81,11 +68,10 @@ static esp_err_t storage_init_sdmmc(sdmmc_card_t **card)
 
     if (sdmmc_card_init(&host, sd_card) != ESP_OK)
     {
-        ESP_LOGE(TAG, "The detection pin of the slot is disconnected(Insert uSD card)");
+        ESP_LOGE(TAG, "The detection pin of the slot is disconnected (Insert uSD card)");
         goto clean;
     }
 
-    // Card has been initialized, print its properties
     sdmmc_card_print_info(stdout, sd_card);
     *card = sd_card;
 
@@ -112,17 +98,25 @@ clean:
 
     return ret;
 }
+
 #endif
 
 // mount the partition and show all the files in path
-bool msc_dick_mount(const char *path)
-{
+static bool storage_mounted = false; // 挂载状态标志
+
+bool msc_disk_mount(const char *path) {
+    if (storage_mounted) {
+        ESP_LOGI(TAG, "Storage already mounted.");
+        return true;
+    }
+
 #ifdef CONFIG_MSC_STORAGE_MEDIA_SPIFLASH
     static wl_handle_t wl_handle = WL_INVALID_HANDLE;
     ESP_ERROR_CHECK(storage_init_spiflash(&wl_handle));
 
     const tinyusb_msc_spiflash_config_t config_spi = {.wl_handle = wl_handle};
     ESP_ERROR_CHECK(tinyusb_msc_storage_init_spiflash(&config_spi));
+    ESP_LOGI(TAG, "xx...");
 #else
     static sdmmc_card_t *card = NULL;
 
@@ -137,5 +131,41 @@ bool msc_dick_mount(const char *path)
     ESP_LOGI(TAG, "Mount storage...");
 
     ESP_ERROR_CHECK(tinyusb_msc_storage_mount(path));
+    storage_mounted = true;
+    return true;
+}
+
+// 实现卸载函数
+bool msc_disk_unmount(void) {
+    if (!storage_mounted) {
+        ESP_LOGI(TAG, "Storage not mounted.");
+        return true;
+    }
+
+#ifdef CONFIG_MSC_STORAGE_MEDIA_SPIFLASH
+    // 卸载 TinyUSB 的 MSC 存储
+    esp_err_t ret = tinyusb_msc_storage_unmount();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to unmount TinyUSB MSC storage for SPI Flash");
+        return false;
+    }
+    ESP_LOGI(TAG, "TinyUSB MSC storage unmounted successfully for SPI Flash");
+
+    // 反初始化 TinyUSB 的 SPI Flash MSC 存储
+    ret = tinyusb_msc_storage_deinit_spiflash();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to deinitialize TinyUSB MSC storage for SPI Flash");
+        return false;
+    }
+    ESP_LOGI(TAG, "TinyUSB MSC storage deinitialized successfully for SPI Flash");
+
+    // 重置 wear leveling 句柄
+    wl_handle = WL_INVALID_HANDLE;
+#else
+    // 处理 SDMMC 存储的卸载逻辑
+#endif
+
+    storage_mounted = false;
+    ESP_LOGI(TAG, "MSC storage unmounted successfully");
     return true;
 }

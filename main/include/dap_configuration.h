@@ -26,14 +26,14 @@
  * @brief 接收端模式
  * SINGLE_MODE=1: 单接收端模式     
  *      有线模式：PC->数据线->接收端->SWD/JTAG
- *      无线模式：PC->elaphureLink->TCP/IP->接收端->SWD/JTAG
- *      无线串口模式：PC->WebSocket->TCP/IP->接收端->串口
+ *      无线模式：PC->elaphureLink->Wifi->接收端->SWD/JTAG
+ *      无线串口模式：PC->WebSocket->Wifi->接收端->串口
  * SINGLE_MODE=0: 发送端+接收端模式
  *     有线模式：PC->数据线->发送端->数据线->接收端->SWD/JTAG
- *     无线模式：PC->发送端->TCP/IP->接收端->SWD/JTAG
- *     无线串口模式：PC->发送端->TCP/IP->接收端->串口
+ *     无线模式：PC->发送端->Wifi->接收端->SWD/JTAG
+ *     无线串口模式：PC->发送端->Wifi->接收端->串口
  */
 
-#define SINGLE_MODE 1
+#define SINGLE_MODE 0
 
 #endif

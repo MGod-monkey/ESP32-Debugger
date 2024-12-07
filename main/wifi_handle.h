@@ -6,9 +6,11 @@ extern "C" {
 #endif
 
 // extern httpd_handle_t http_server;
+extern TaskHandle_t kWifiTcpServerTaskhandle;
 
 void wifi_init(void);
 void mdns_setup(void);
+// void wifi_monitor_task(void *pvParameters);
 
 #ifdef __cplusplus
 }

@@ -2,25 +2,26 @@
  * @Author: wpqds666@163.com MGodmonkey
  * @Date: 2024-11-15 23:24:33
  * @LastEditors: wpqds666@163.com MGodmonkey
- * @LastEditTime: 2024-12-05 10:02:59
+ * @LastEditTime: 2024-12-07 18:07:35
  * @FilePath: \ESP32-DAPLink-master\main\main.cpp
  * @Description: 
  * 
- * Copyright (c) 2024 by MGodmonkey, All Rights Reserved. 
+ * Copyright (c) 2024 by MGodmonkey, All Rights Reserved.
  */
 #include "main.h"
 
 static const char *TAG = "main";
 TaskHandle_t kDAPTaskHandle = NULL;
-extern TaskHandle_t kDAPTaskHandle;
+TaskHandle_t kWifiTcpServerTaskhandle = NULL;
 extern int kRestartDAPHandle;
+extern bool tcpserver_run;
 
 #define MODE_SWITCH_GPIO GPIO_NUM_10
 #define WIRELESS_MODE 0
 #define WIRED_MODE 1
 #define LONG_PRESS_TIME_MS 2000  // 2秒长按阈值
 
-static volatile bool g_current_mode = WIRELESS_MODE;  // 默认无线模式
+static volatile bool current_mode = WIRELESS_MODE;  // 默认有线模式
 static volatile bool g_mode_switching = false;
 // extern httpd_handle_t http_server;
 
@@ -105,30 +106,44 @@ extern "C" void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_r
     tud_hid_report(0, s_tx_buf, sizeof(s_tx_buf));
 }
 
+// 有线模式
+tinyusb_config_t tusb_cfg = {
+    .device_descriptor = NULL,
+    .string_descriptor = NULL,
+    .string_descriptor_count = 0,
+    .external_phy = false,
+    .configuration_descriptor = NULL,
+    .self_powered = false,
+    .vbus_monitor_io = 0};
 
-// LED strip common configuration
-led_strip_config_t strip_config = {
-    .strip_gpio_num = GPIO_LED_WIFI_STATUS,  // The GPIO that connected to the LED strip's data line
-    .max_leds = 1,                 // The number of LEDs in the strip,
-    .led_model = LED_MODEL_WS2812, // LED strip model, it determines the bit timing
-    .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB, // The color component format is G-R-B
-    .flags = {
-        .invert_out = false, // don't invert the output signal
-    }
-};
+tinyusb_config_cdcacm_t acm_cfg = {
+    .usb_dev = TINYUSB_USBDEV_0,
+    .cdc_port = TINYUSB_CDC_ACM_0,
+    .rx_unread_buf_sz = 64,
+    .callback_rx = usb_cdc_send_to_uart, // the first way to register a callback
+    .callback_rx_wanted_char = NULL,
+    .callback_line_state_changed = NULL,
+    .callback_line_coding_changed = usb_cdc_set_line_codinig};
 
-/// RMT backend specific configuration
-led_strip_rmt_config_t rmt_config = {
-    .clk_src = RMT_CLK_SRC_DEFAULT,    // different clock source can lead to different power consumption
-    .resolution_hz = 10 * 1000 * 1000, // RMT counter clock frequency: 10MHz
-    .mem_block_symbols = 64,           // the memory size of each RMT channel, in words (4 bytes)
-    .flags = {
-        .with_dma = false, // DMA feature is available on chips like ESP32-S3/P4
-    }
-};
-
-/// Create the LED strip object
-led_strip_handle_t led_strip;
+void uart_init(void) {
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity    = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_APB,
+    };
+    
+    // 配置 UART 参数
+    ESP_ERROR_CHECK(uart_param_config(UART_NUM_0, &uart_config));
+    
+    // 设置 UART 引脚
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0, GPIO_NUM_13, GPIO_NUM_14, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    
+    // 安装 UART 驱动
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, 256, 256, 0, NULL, 0));
+}
 
 // GPIO初试化
 static void gpio_init(void)
@@ -136,83 +151,26 @@ static void gpio_init(void)
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = (1ULL<<GPIO_NUM_2) | (1ULL<<GPIO_NUM_14) | (1ULL<<GPIO_NUM_12);
+    io_conf.pin_bit_mask = (1ULL<<GPIO_NUM_2) | (1ULL<<GPIO_NUM_12);
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
-
-    gpio_set_level(GPIO_NUM_2, 1);
-    gpio_set_level(GPIO_NUM_14, 1);
-    gpio_set_level(GPIO_NUM_12, 1);
 
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pin_bit_mask = (1ULL << MODE_SWITCH_GPIO);
     io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     gpio_config(&io_conf);
+    gpio_set_level(GPIO_NUM_2, 1);
+    // gpio_set_level(GPIO_NUM_14, 1);
+    gpio_set_level(GPIO_NUM_12, 1);
+    gpio_set_level(MODE_SWITCH_GPIO, 1);
 }
 
-// UART初试化
-static void uart_init(void)
-{
-    uart_config_t uart_config = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .rx_flow_ctrl_thresh = 122,
-        .source_clk = UART_SCLK_DEFAULT
-    };
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_0, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0, 1, 3, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, 1024, 1024, 0, NULL, 0));
-}
-
-// 信号灯变化任务
-void signalLED_change_task(void *pvParameters) {
-    while (1) {
-        wifi_ap_record_t ap_info;
-        esp_err_t status = esp_wifi_sta_get_ap_info(&ap_info);
-        if (status == ESP_OK) {
-            int8_t rssi = ap_info.rssi;
-            int delay_time = 1000; // 默认1秒
-            log_printf(TAG, LOG_DEBUG,  "rssi: %d", rssi);
-
-            if (rssi > -50) {
-                // 信号强度非常好，LED常亮绿色
-                led_strip_set_pixel(led_strip, 0, 0, 255, 0);
-                led_strip_refresh(led_strip);
-                vTaskDelay(pdMS_TO_TICKS(delay_time));
-                continue;
-            } else if (rssi > -60) {
-                // 信号强度好，LED慢闪绿色
-                delay_time = 1000;
-            } else if (rssi > -70) {
-                // 信号强度一般，LED中速闪烁绿色
-                delay_time = 500;
-            } else if (rssi > -80) {
-                // 信号强度差，LED快速闪烁绿色
-                delay_time = 250;
-            } else {
-                // 信号非常差，LED非常快速闪烁绿色
-                delay_time = 100;
-            }
-
-            led_strip_set_pixel(led_strip, 0, 0, 255, 0);
-            led_strip_refresh(led_strip);
-            vTaskDelay(pdMS_TO_TICKS(delay_time));
-            led_strip_set_pixel(led_strip, 0, 0, 0, 0);
-            led_strip_refresh(led_strip);
-            vTaskDelay(pdMS_TO_TICKS(delay_time));
-        } else {
-            // WiFi未连接，LED显示红色
-            led_strip_set_pixel(led_strip, 0, 255, 0, 0);
-            led_strip_refresh(led_strip);
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
-    }
-}
+static volatile bool mode_switching = false;
+static volatile bool wifi_running = false;
+static volatile bool usb_running = false;
 
 // 按键状态枚举
 typedef enum {
@@ -221,169 +179,272 @@ typedef enum {
     BUTTON_TRIGGERED     // 已触发模式切换
 } button_state_t;
 
-// // 模式切换任务
-// static void mode_switch_task(void *pvParameters)
-// {
-//     button_state_t button_state = BUTTON_IDLE;
-//     TickType_t press_start_time = 0;
-//     const TickType_t mode_switch_threshold = pdMS_TO_TICKS(LONG_PRESS_TIME_MS);
-    
-//     while (1) {
-//         int level = gpio_get_level(MODE_SWITCH_GPIO);
-//         TickType_t current_time = xTaskGetTickCount();
-        
-//         switch (button_state) {
-//             case BUTTON_IDLE:
-//                 if (level == 0) {  // 按键按下
-//                     press_start_time = current_time;
-//                     button_state = BUTTON_PRESSED;
-//                 }
-//                 break;
-                
-//             case BUTTON_PRESSED:
-//                 if (level == 0) {  // 按键持续按下
-//                     if ((current_time - press_start_time) >= mode_switch_threshold) {
-//                         // 达到触发时间，执行模式切换
-//                         button_state = BUTTON_TRIGGERED;
-                        
-//                         // 蓝灯闪烁两次表示模式切换
-//                         for (int i = 0; i < 2; i++) {
-//                             led_strip_set_pixel(led_strip, 0, 0, 0, 255);
-//                             led_strip_refresh(led_strip);
-//                             vTaskDelay(pdMS_TO_TICKS(200));
-//                             led_strip_set_pixel(led_strip, 0, 0, 0, 0);
-//                             led_strip_refresh(led_strip);
-//                             vTaskDelay(pdMS_TO_TICKS(200));
-//                         }
-                        
-//                         // 切换模式
-//                         g_current_mode = !g_current_mode;
-                        
-//                         // 根据新模式执行初始化
-//                         if (g_current_mode == WIRELESS_MODE) {
-//                             // 切换到无线模式
-//                             ESP_ERROR_CHECK(nvs_flash_init());
-//                             wifi_init();
-//                             #if (SINGLE_MODE == 1)
-//                             // Specify the usbip server task
-//                                 #if (USE_TCP_NETCONN == 1)
-//                                     xTaskCreate(tcp_netconn_task, "tcp_server", 4096, NULL, 14, NULL);
-//                                 #else // BSD style
-//                                     xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 14, NULL);
-//                                 #endif
-//                             #else
-//                                 xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
-//                             #endif
+static bool usb_initialized = false;
 
-//                             #if (USE_MDNS == 1)
-//                                 mdns_setup();
-//                             #endif
-//                             // TODO: 停止USB相关任务
-//                         } else {
-//                             // 切换到有线模式
-//                             // TODO: 停止WiFi相关任务
-//                             // TODO: 初始化USB
-//                         }
-//                     }
-//                 } else {  // 按键释放
-//                     button_state = BUTTON_IDLE;
-//                 }
-//                 break;
-                
-//             case BUTTON_TRIGGERED:
-//                 if (level == 1) {  // 等待按键释放
-//                     button_state = BUTTON_IDLE;
-//                 }
-//                 break;
-//         }
+/**
+ * @brief WiFi服务控制函数
+ * @param enable: true启动WiFi服务，false停止WiFi服务
+ * @return esp_err_t: ESP_OK表示成功，其他值表示错误
+ */
+esp_err_t wifi_service_control(bool enable) {
+    if (enable) {
+        if (!wifi_running) {
+            wifi_init();
+            // xTaskCreate(signalLED_change_task, "signalLED_change_task", 2048, NULL, 5, NULL);
+            // xTaskCreate(wifi_monitor_task, "wifi_monitor", 2048, NULL, 5, NULL);
+            wifi_running = true;
+        }
+    } else {
+        if (wifi_running) {
+            tcpserver_run = false;
+            if (kWifiTcpServerTaskhandle != NULL) {
+                xTaskNotifyGive(kWifiTcpServerTaskhandle);
+            }
+            // 等待一段时间确保TCP任务处理完成
+            vTaskDelay(pdMS_TO_TICKS(100));
+            // 停止WiFi
+            ESP_ERROR_CHECK(esp_wifi_disconnect());
+            ESP_ERROR_CHECK(esp_wifi_stop());
+            ESP_ERROR_CHECK(esp_wifi_deinit());
+            // xEventGroupClearBits(wifi_event_group, BIT0);
+            wifi_running = false;
+        }
+    }
+    return ESP_OK;
+}
+
+/**
+ * @brief USB服务控制函数
+ * @param enable: true启动USB服务，false停止USB服务
+ * @return esp_err_t: ESP_OK表示成功，其他值表示错误
+ */
+#ifdef CONFIG_TINYUSB_MSC_ENABLED
+esp_err_t usb_service_control(bool enable) {
+
+    esp_err_t ret;
+    if (enable) {
+        if (!usb_running) {           
+            log_printf(TAG, LOG_INFO, "USB initialization");
+            
+            if (!usb_initialized)
+            {    
+                tusb_cfg.configuration_descriptor = get_configuration_descriptor(true);
+                tusb_cfg.string_descriptor = get_string_descriptor(true);
+                tusb_cfg.string_descriptor_count = get_string_descriptor_count();
+                tusb_cfg.device_descriptor = get_device_descriptor();
+                usb_initialized = true;
+            }
+            bool mount_ret = msc_disk_mount(CONFIG_TINYUSB_MSC_MOUNT_PATH);           
+            if (!mount_ret) {
+                log_printf(TAG, LOG_ERROR, "Failed to mount MSC disk");
+                return ESP_FAIL;
+            }
+
+            programmer_init();
+
+           // 安装 TinyUSB 驱动
+            ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
+            // 初始化 CDC ACM
+            ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
+
+            // // 初始化 UART
+            // cdc_uart_init(UART_NUM_1, GPIO_NUM_13, GPIO_NUM_14, 115200);
+            cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, usb_cdc_send_to_host, (void *)TINYUSB_CDC_ACM_0);
+
+            usb_running = true;
+            log_printf(TAG, LOG_INFO, "USB initialized successfully");
+        }
+    } else {
+        if (usb_running) {
+            // 停止 CDC
+            tusb_stop_task();
+            programmer_stop_task();
+            cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, NULL, NULL);
+
+            // // 卸载 MSC 磁盘
+            bool unmount_ret = msc_disk_unmount();
+            if (!unmount_ret) {
+                log_printf(TAG, LOG_ERROR, "Failed to unmount MSC disk");
+            } else {
+                log_printf(TAG, LOG_INFO, "MSC disk unmounted successfully");
+            }
+
+            // 卸载 CDC ACM
+            if (tusb_cdc_acm_deinit(TINYUSB_CDC_ACM_0) != ESP_OK) {
+                log_printf(TAG, LOG_ERROR, "Failed to deinitialize CDC ACM");
+            }
+
+            // // 删除 UART 驱动
+            // if (uart_driver_delete(UART_NUM_1) != ESP_OK) {
+            //     log_printf(TAG, LOG_ERROR, "Failed to delete UART driver");
+            // } else {
+            //     log_printf(TAG, LOG_INFO, "UART driver deleted successfully");
+            // }
+
+            // 卸载 TinyUSB 驱动
+            if (tinyusb_driver_uninstall() != ESP_OK) {
+                log_printf(TAG, LOG_ERROR, "Failed to uninstall TinyUSB driver");
+            } else {
+                log_printf(TAG, LOG_INFO, "TinyUSB driver uninstalled successfully");
+            }
+
+            // 确保所有任务都已停止
+            vTaskDelay(pdMS_TO_TICKS(100)); // 等待一段时间确保卸载完成
+
+            usb_running = false;
+            log_printf(TAG, LOG_INFO, "USB deinitialized successfully");
+        }
+    }
+    return ESP_OK;
+}
+#else
+
+esp_err_t usb_service_control(bool enable) {
+    bool ret;
+    if (enable) {
+        if (!usb_running) {           
+            log_printf(TAG, LOG_INFO, "USB initialization");
+
+            // 重新挂载 MSC 磁盘
+            bool mount_ret = msc_disk_mount(CONFIG_TINYUSB_MSC_MOUNT_PATH);           
+            // 配置 USB 设备
+            tusb_cfg.configuration_descriptor = get_configuration_descriptor(true);
+            tusb_cfg.string_descriptor = get_string_descriptor(true);
+            tusb_cfg.string_descriptor_count = get_string_descriptor_count();
+            tusb_cfg.device_descriptor = get_device_descriptor();
+            
+            // 安装 TinyUSB 驱动
+            ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
+            // 初始化 CDC ACM
+            ret = tusb_cdc_acm_init(&acm_cfg);
+            if (ret != ESP_OK) {
+                log_printf(TAG, LOG_ERROR, "Failed to initialize CDC ACM");
+                tinyusb_driver_uninstall();
+                msc_disk_unmount(); // 反初始化失败时卸载磁盘
+                return ret;
+            }
+
+            // 初始化 UART
+            cdc_uart_init(UART_NUM_1, GPIO_NUM_13, GPIO_NUM_14, 115200);
+            cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, usb_cdc_send_to_host, (void *)TINYUSB_CDC_ACM_0);
+
+            usb_running = true;
+            log_printf(TAG, LOG_INFO, "USB initialized successfully");
+        }
+    } else {
+        if (usb_running) {
+           // 停止 CDC
+            cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, NULL, NULL);
+            
+            // 卸载 CDC
+            if (tusb_cdc_acm_deinit(TINYUSB_CDC_ACM_0) != ESP_OK) {
+                log_printf(TAG, LOG_ERROR, "Failed to deinitialize CDC ACM");
+            }
+            vTaskDelay(pdMS_TO_TICKS(100)); // 等待 CDC 卸载
+
+            // 卸载 TinyUSB 驱动
+            if (tinyusb_driver_uninstall() != ESP_OK) {
+                log_printf(TAG, LOG_ERROR, "Failed to uninstall TinyUSB driver");
+            }
+            vTaskDelay(pdMS_TO_TICKS(100)); // 等待 TinyUSB 驱动卸载
+
+            // 删除 UART 驱动
+            if (uart_driver_delete(UART_NUM_1) != ESP_OK) {
+                log_printf(TAG, LOG_ERROR, "Failed to delete UART driver");
+            } else {
+                log_printf(TAG, LOG_INFO, "UART driver deleted successfully");
+            }
+
+            usb_running = false;
+            log_printf(TAG, LOG_INFO, "USB deinitialization successful");
+        }
+    }
+    return ESP_OK;
+}
+
+#endif
+
+// 模式切换任务
+static void mode_switch_task(void *pvParameters)
+{
+    button_state_t button_state = BUTTON_IDLE;
+    TickType_t press_start_time = 0;
+    const TickType_t mode_switch_threshold = pdMS_TO_TICKS(LONG_PRESS_TIME_MS);
+    
+    while (1) {
+        int level = gpio_get_level(MODE_SWITCH_GPIO);
+        TickType_t current_time = xTaskGetTickCount();
         
-//         vTaskDelay(pdMS_TO_TICKS(10));  // 10ms采样间隔
-//     }
-// }
+        switch (button_state) {
+            case BUTTON_IDLE:
+                if (level == 0) {  // 按键按下
+                    press_start_time = current_time;
+                    button_state = BUTTON_PRESSED;
+                }
+                break;
+                
+            case BUTTON_PRESSED:
+                if (level == 0) {  // 按键持续按下
+                    if ((current_time - press_start_time) >= mode_switch_threshold) {
+                        // 达到触发时间，执行模式切换
+                        button_state = BUTTON_TRIGGERED;
+                        log_printf(TAG, LOG_INFO, "Mode switch triggered");
+                        
+                        // 蓝灯闪烁两次表示模式切换
+                        for (int i = 0; i < 2; i++) {
+                            // 蓝灯闪烁2次，每次延时200ms
+                            wifi_rssi_led_blink(200, 2, 0, 0, 255);
+                        }
+                        
+                        // 切换模式
+                        current_mode = !current_mode;
+                        
+                        // 根据新模式执行初始化
+                        if (current_mode == WIRELESS_MODE) {
+                            log_printf(TAG, LOG_INFO, "Switching to Wireless Mode");
+                            usb_service_control(false);
+                            wifi_service_control(true);
+                        } else {
+                            log_printf(TAG, LOG_INFO, "Switching to Wired Mode");
+                            wifi_service_control(false);
+                            usb_service_control(true);
+                        }
+                    }
+                } else {  // 按键释放
+                    button_state = BUTTON_IDLE;
+                }
+                break;
+                
+            case BUTTON_TRIGGERED:
+                if (level == 1) {  // 等待按键释放
+                    button_state = BUTTON_IDLE;
+                }
+                break;
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(10));  // 10ms采样间隔
+    }
+}
 
 extern "C" void app_main(void)
 {
-    bool ret = false;
+    gpio_init();
+    uart_init();
     DAP_Setup();
-//     // 无线模式
-//     ESP_ERROR_CHECK(nvs_flash_init());
-
-//     #if (USE_UART_BRIDGE == 1)
-//         uart_bridge_init();
-//     #endif
-//     wifi_init();
-
-// #if (SINGLE_MODE == 1)
-//     // Specify the usbip server task
-//     #if (USE_TCP_NETCONN == 1)
-//         xTaskCreate(tcp_netconn_task, "tcp_server", 4096, NULL, 14, NULL);
-//     #else // BSD style
-//         xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 14, NULL);
-//     #endif
-// #else
-//     xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
-// #endif
-//     xTaskCreate(signalLED_change_task, "signalLED_change_task", 2048, NULL, 5, NULL);
-
-//     #if (USE_MDNS == 1)
-//         mdns_setup();
-//     #endif
-
-    // 有线模式
-    tinyusb_config_t tusb_cfg = {
-        .device_descriptor = NULL,
-        .string_descriptor = NULL,
-        .string_descriptor_count = 0,
-        .external_phy = false,
-        .configuration_descriptor = NULL,
-        .self_powered = false,
-        .vbus_monitor_io = 0};
-
-    tinyusb_config_cdcacm_t acm_cfg = {
-        .usb_dev = TINYUSB_USBDEV_0,
-        .cdc_port = TINYUSB_CDC_ACM_0,
-        .rx_unread_buf_sz = 64,
-        .callback_rx = usb_cdc_send_to_uart, // the first way to register a callback
-        .callback_rx_wanted_char = NULL,
-        .callback_line_state_changed = NULL,
-        .callback_line_coding_changed = usb_cdc_set_line_codinig};
-
-    log_printf(TAG, LOG_INFO,  "USB initialization");
-
-    ret = msc_dick_mount(CONFIG_TINYUSB_MSC_MOUNT_PATH);
-    tusb_cfg.configuration_descriptor = get_configuration_descriptor(ret);
-    tusb_cfg.string_descriptor = get_string_descriptor(ret);
-    tusb_cfg.string_descriptor_count = get_string_descriptor_count();
-    tusb_cfg.device_descriptor = get_device_descriptor();
-
-    ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
-    ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
-
-    programmer_init();
-    cdc_uart_init(UART_NUM_1, GPIO_NUM_13, GPIO_NUM_14, 115200);
-    cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, usb_cdc_send_to_host, (void *)TINYUSB_CDC_ACM_0);
-    // cdc_uart_register_rx_handler(CDC_UART_WEB_HANDLER, web_send_to_clients, &http_server);
-    log_printf(TAG, LOG_INFO,  "USB initialization DONE");
-
-    // DAP handle task
-    xTaskCreate(DAP_Thread, "DAP_Task", 2048, NULL, 10, &kDAPTaskHandle);
-    // // Initialize components
-    // gpio_init();
-    // // 初始化信号灯
+    wifi_rssi_led_init();
     // xTaskCreate(signalLED_change_task, "signalLED_change_task", 2048, NULL, 5, NULL);
-    // // 创建模式切换任务
-    // xTaskCreate(mode_switch_task, "mode_switch", 2048, NULL, 5, NULL);
     
-    // // 根据默认模式初始化
-    // if (g_current_mode == WIRELESS_MODE) {
-    //     // 无线模式初始化
-    //     ESP_ERROR_CHECK(nvs_flash_init());
-    //     wifi_init();
-    // } else {
-    //     // 有线模式初始化
-    //     // USB相关初始化
-    // }
-    // ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+    // 增加模式切换任务的栈大小
+    xTaskCreate(mode_switch_task, "mode_switch", 4096, NULL, 5, NULL);
 
-    // uart_init();
+    // 根据默认模式初始化
+    if (current_mode == WIRELESS_MODE) {
+        wifi_service_control(true);
+        log_printf(TAG, LOG_INFO,  "wifi init");
+    } else {
+        usb_service_control(true);
+        log_printf(TAG, LOG_INFO,  "usb init");
+    }
+
+    xTaskCreate(DAP_Thread, "DAP_Task", 2048, NULL, 10, &kDAPTaskHandle);
 }
