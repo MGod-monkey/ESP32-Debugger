@@ -17,20 +17,34 @@ void usb_cdc_send_to_host(void *context, uint8_t *data, size_t size)
 {
     ESP_LOGD(TAG, "data %p, size %d", data, size);
 
+    // 添加调试日志
+    ESP_LOGI(TAG, "CDC connected: %d", tud_cdc_n_connected((int)context));
+    
     if (tud_cdc_n_connected((int)context))
     {
-        tinyusb_cdcacm_write_queue((tinyusb_cdcacm_itf_t)context, data, size);
-        tinyusb_cdcacm_write_flush((tinyusb_cdcacm_itf_t)context, 1);
+        // 检查写入结果
+        size_t written = tinyusb_cdcacm_write_queue((tinyusb_cdcacm_itf_t)context, data, size);
+        ESP_LOGI(TAG, "Written bytes: %d", written);
+        
+        // 确保数据被刷新
+        esp_err_t flush_result = tinyusb_cdcacm_write_flush((tinyusb_cdcacm_itf_t)context, 100); // 增加超时时间
+        ESP_LOGI(TAG, "Flush result: %d", flush_result);
     }
 }
 
 void usb_cdc_set_line_codinig(int itf, cdcacm_event_t *event)
 {
+    if (!event || !event->line_coding_changed_data.p_line_coding) {
+        // ESP_LOGE(TAG, "Invalid line coding event");
+        return;
+    }
+
     cdc_line_coding_t const *coding = event->line_coding_changed_data.p_line_coding;
     uint32_t baudrate = 0;
 
     if (cdc_uart_get_baudrate(&baudrate) && (baudrate != coding->bit_rate))
     {
+        // ESP_LOGI(TAG, "Changing baudrate from %lu to %lu", baudrate, coding->bit_rate);
         cdc_uart_set_baudrate(coding->bit_rate);
     }
 }

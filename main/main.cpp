@@ -2,7 +2,7 @@
  * @Author: wpqds666@163.com MGodmonkey
  * @Date: 2024-11-15 23:24:33
  * @LastEditors: wpqds666@163.com MGodmonkey
- * @LastEditTime: 2024-12-07 18:07:35
+ * @LastEditTime: 2024-12-20 15:52:45
  * @FilePath: \ESP32-DAPLink-master\main\main.cpp
  * @Description: 
  * 
@@ -16,7 +16,6 @@ TaskHandle_t kWifiTcpServerTaskhandle = NULL;
 extern int kRestartDAPHandle;
 extern bool tcpserver_run;
 
-#define MODE_SWITCH_GPIO GPIO_NUM_10
 #define WIRELESS_MODE 0
 #define WIRED_MODE 1
 #define LONG_PRESS_TIME_MS 2000  // 2秒长按阈值
@@ -80,15 +79,20 @@ extern "C" bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_c
     return false;
 }
 
+
 extern "C" void tud_vendor_rx_cb(uint8_t itf)
 {
     static uint8_t in[DAP_PACKET_SIZE] = {0};
     static uint8_t out[DAP_PACKET_SIZE] = {0};
-
-    if (tud_vendor_n_read(itf, in, sizeof(in)) > 0)
+    uint32_t count = tud_vendor_n_read(itf, in, sizeof(in));
+    
+    if (count > 0 && count <= DAP_PACKET_SIZE)
     {
-        tud_vendor_n_write(itf, out, DAP_ProcessCommand(in, out) & 0xFFFF);
-        tud_vendor_n_flush(itf);
+        uint16_t resp_len = DAP_ProcessCommand(in, out) & 0xFFFF;
+        if(resp_len <= DAP_PACKET_SIZE) {
+            tud_vendor_n_write(itf, out, resp_len);
+            tud_vendor_n_flush(itf);
+        }
     }
 }
 #endif
@@ -104,6 +108,13 @@ extern "C" void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_r
 
     DAP_ProcessCommand(buffer, s_tx_buf);
     tud_hid_report(0, s_tx_buf, sizeof(s_tx_buf));
+}
+
+void tinyusb_cdc_line_state_changed_callback(int itf, cdcacm_event_t *event)
+{
+    int dtr = event->line_state_changed_data.dtr;
+    int rts = event->line_state_changed_data.rts;
+    // ESP_LOGI(TAG, "Line state changed: DTR:%d, RTS:%d", dtr, rts);
 }
 
 // 有线模式
@@ -136,25 +147,19 @@ void uart_init(void) {
     };
     
     // 配置 UART 参数
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_0, &uart_config));
+    ESP_ERROR_CHECK(uart_param_config(UART_PORT, &uart_config));
     
     // 设置 UART 引脚
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0, GPIO_NUM_13, GPIO_NUM_14, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    ESP_ERROR_CHECK(uart_set_pin(UART_PORT, GPIO_UART_TX, GPIO_UART_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
     
     // 安装 UART 驱动
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, 256, 256, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_driver_install(UART_PORT, 256, 256, 0, NULL, 0));
 }
 
 // GPIO初试化
 static void gpio_init(void)
 {
     gpio_config_t io_conf = {};
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = (1ULL<<GPIO_NUM_2) | (1ULL<<GPIO_NUM_12);
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-    gpio_config(&io_conf);
 
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
@@ -162,10 +167,8 @@ static void gpio_init(void)
     io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     gpio_config(&io_conf);
-    gpio_set_level(GPIO_NUM_2, 1);
-    // gpio_set_level(GPIO_NUM_14, 1);
-    gpio_set_level(GPIO_NUM_12, 1);
     gpio_set_level(MODE_SWITCH_GPIO, 1);
+
 }
 
 static volatile bool mode_switching = false;
@@ -218,7 +221,7 @@ esp_err_t wifi_service_control(bool enable) {
  * @param enable: true启动USB服务，false停止USB服务
  * @return esp_err_t: ESP_OK表示成功，其他值表示错误
  */
-#ifdef CONFIG_TINYUSB_MSC_ENABLED
+
 esp_err_t usb_service_control(bool enable) {
 
     esp_err_t ret;
@@ -247,8 +250,8 @@ esp_err_t usb_service_control(bool enable) {
             // 初始化 CDC ACM
             ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
 
-            // // 初始化 UART
-            // cdc_uart_init(UART_NUM_1, GPIO_NUM_13, GPIO_NUM_14, 115200);
+            // 初始化 CDC UART
+            cdc_uart_init(UART_PORT, GPIO_UART_TX, GPIO_UART_RX, 115200);
             cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, usb_cdc_send_to_host, (void *)TINYUSB_CDC_ACM_0);
 
             usb_running = true;
@@ -256,37 +259,37 @@ esp_err_t usb_service_control(bool enable) {
         }
     } else {
         if (usb_running) {
-            // 停止 CDC
-            tusb_stop_task();
-            programmer_stop_task();
-            cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, NULL, NULL);
+            // // 停止 CDC
+            // tusb_stop_task();
+            // programmer_stop_task();
+            // // cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, NULL, NULL);
 
-            // // 卸载 MSC 磁盘
-            bool unmount_ret = msc_disk_unmount();
-            if (!unmount_ret) {
-                log_printf(TAG, LOG_ERROR, "Failed to unmount MSC disk");
-            } else {
-                log_printf(TAG, LOG_INFO, "MSC disk unmounted successfully");
-            }
-
-            // 卸载 CDC ACM
-            if (tusb_cdc_acm_deinit(TINYUSB_CDC_ACM_0) != ESP_OK) {
-                log_printf(TAG, LOG_ERROR, "Failed to deinitialize CDC ACM");
-            }
-
-            // // 删除 UART 驱动
-            // if (uart_driver_delete(UART_NUM_1) != ESP_OK) {
-            //     log_printf(TAG, LOG_ERROR, "Failed to delete UART driver");
+            // // // 卸载 MSC 磁盘
+            // bool unmount_ret = msc_disk_unmount();
+            // if (!unmount_ret) {
+            //     log_printf(TAG, LOG_ERROR, "Failed to unmount MSC disk");
             // } else {
-            //     log_printf(TAG, LOG_INFO, "UART driver deleted successfully");
+            //     log_printf(TAG, LOG_INFO, "MSC disk unmounted successfully");
             // }
 
-            // 卸载 TinyUSB 驱动
-            if (tinyusb_driver_uninstall() != ESP_OK) {
-                log_printf(TAG, LOG_ERROR, "Failed to uninstall TinyUSB driver");
-            } else {
-                log_printf(TAG, LOG_INFO, "TinyUSB driver uninstalled successfully");
-            }
+            // // 卸载 CDC ACM
+            // if (tusb_cdc_acm_deinit(TINYUSB_CDC_ACM_0) != ESP_OK) {
+            //     log_printf(TAG, LOG_ERROR, "Failed to deinitialize CDC ACM");
+            // }
+
+            // // // 删除 UART 驱动
+            // // if (uart_driver_delete(UART_NUM_1) != ESP_OK) {
+            // //     log_printf(TAG, LOG_ERROR, "Failed to delete UART driver");
+            // // } else {
+            // //     log_printf(TAG, LOG_INFO, "UART driver deleted successfully");
+            // // }
+
+            // // 卸载 TinyUSB 驱动
+            // if (tinyusb_driver_uninstall() != ESP_OK) {
+            //     log_printf(TAG, LOG_ERROR, "Failed to uninstall TinyUSB driver");
+            // } else {
+            //     log_printf(TAG, LOG_INFO, "TinyUSB driver uninstalled successfully");
+            // }
 
             // 确保所有任务都已停止
             vTaskDelay(pdMS_TO_TICKS(100)); // 等待一段时间确保卸载完成
@@ -297,72 +300,6 @@ esp_err_t usb_service_control(bool enable) {
     }
     return ESP_OK;
 }
-#else
-
-esp_err_t usb_service_control(bool enable) {
-    bool ret;
-    if (enable) {
-        if (!usb_running) {           
-            log_printf(TAG, LOG_INFO, "USB initialization");
-
-            // 重新挂载 MSC 磁盘
-            bool mount_ret = msc_disk_mount(CONFIG_TINYUSB_MSC_MOUNT_PATH);           
-            // 配置 USB 设备
-            tusb_cfg.configuration_descriptor = get_configuration_descriptor(true);
-            tusb_cfg.string_descriptor = get_string_descriptor(true);
-            tusb_cfg.string_descriptor_count = get_string_descriptor_count();
-            tusb_cfg.device_descriptor = get_device_descriptor();
-            
-            // 安装 TinyUSB 驱动
-            ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
-            // 初始化 CDC ACM
-            ret = tusb_cdc_acm_init(&acm_cfg);
-            if (ret != ESP_OK) {
-                log_printf(TAG, LOG_ERROR, "Failed to initialize CDC ACM");
-                tinyusb_driver_uninstall();
-                msc_disk_unmount(); // 反初始化失败时卸载磁盘
-                return ret;
-            }
-
-            // 初始化 UART
-            cdc_uart_init(UART_NUM_1, GPIO_NUM_13, GPIO_NUM_14, 115200);
-            cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, usb_cdc_send_to_host, (void *)TINYUSB_CDC_ACM_0);
-
-            usb_running = true;
-            log_printf(TAG, LOG_INFO, "USB initialized successfully");
-        }
-    } else {
-        if (usb_running) {
-           // 停止 CDC
-            cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, NULL, NULL);
-            
-            // 卸载 CDC
-            if (tusb_cdc_acm_deinit(TINYUSB_CDC_ACM_0) != ESP_OK) {
-                log_printf(TAG, LOG_ERROR, "Failed to deinitialize CDC ACM");
-            }
-            vTaskDelay(pdMS_TO_TICKS(100)); // 等待 CDC 卸载
-
-            // 卸载 TinyUSB 驱动
-            if (tinyusb_driver_uninstall() != ESP_OK) {
-                log_printf(TAG, LOG_ERROR, "Failed to uninstall TinyUSB driver");
-            }
-            vTaskDelay(pdMS_TO_TICKS(100)); // 等待 TinyUSB 驱动卸载
-
-            // 删除 UART 驱动
-            if (uart_driver_delete(UART_NUM_1) != ESP_OK) {
-                log_printf(TAG, LOG_ERROR, "Failed to delete UART driver");
-            } else {
-                log_printf(TAG, LOG_INFO, "UART driver deleted successfully");
-            }
-
-            usb_running = false;
-            log_printf(TAG, LOG_INFO, "USB deinitialization successful");
-        }
-    }
-    return ESP_OK;
-}
-
-#endif
 
 // 模式切换任务
 static void mode_switch_task(void *pvParameters)
@@ -438,13 +375,10 @@ extern "C" void app_main(void)
     xTaskCreate(mode_switch_task, "mode_switch", 4096, NULL, 5, NULL);
 
     // 根据默认模式初始化
-    if (current_mode == WIRELESS_MODE) {
+    if (current_mode == WIRELESS_MODE)
         wifi_service_control(true);
-        log_printf(TAG, LOG_INFO,  "wifi init");
-    } else {
+    else 
         usb_service_control(true);
-        log_printf(TAG, LOG_INFO,  "usb init");
-    }
 
     xTaskCreate(DAP_Thread, "DAP_Task", 2048, NULL, 10, &kDAPTaskHandle);
 }

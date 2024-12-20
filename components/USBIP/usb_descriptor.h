@@ -1,13 +1,12 @@
 #ifndef __USB_DESCRIPTOR_H__
 #define __USB_DESCRIPTOR_H__
 
-
-#include "dap_configuration.h"
+#include "main/include/dap_configuration.h"
 
 // Vendor ID assigned by USB-IF (idVendor).
-#define USBD0_DEV_DESC_IDVENDOR 0x0d28
+#define USBD0_DEV_DESC_IDVENDOR 0xC251
 // Product ID assigned by manufacturer (idProduct).
-#define USBD0_DEV_DESC_IDPRODUCT 0x0204
+#define USBD0_DEV_DESC_IDPRODUCT 0xF00A
 // Device Release Number in binary-coded decimal (bcdDevice).
 #define USBD0_DEV_DESC_BCDDEVICE 0x0100
 

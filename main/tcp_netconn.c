@@ -57,7 +57,7 @@ typedef struct
 
 extern TaskHandle_t kDAPTaskHandle;
 extern int kRestartDAPHandle;
-extern uint8_t kState;
+extern enum state_t kState;
 
 struct netconn *kNetconn = NULL;
 

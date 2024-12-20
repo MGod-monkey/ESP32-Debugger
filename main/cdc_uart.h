@@ -12,6 +12,8 @@
 
 #include "driver/uart.h"
 #include "driver/gpio.h"
+#include "tinyusb.h"
+#include "tusb_cdc_acm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +35,7 @@ typedef enum
 } cdc_uart_handler_def;
 
 bool cdc_uart_init(uart_port_t uart, gpio_num_t tx_pin, gpio_num_t rx_pin, int buadrate);
+void tinyusb_cdc_rx_callback(int itf, cdcacm_event_t *event);
 bool cdc_uart_set_baudrate(uint32_t baudrate);
 bool cdc_uart_get_baudrate(uint32_t *baudrate);
 bool cdc_uart_write(const void *src, size_t size);

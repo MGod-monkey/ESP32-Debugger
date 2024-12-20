@@ -116,7 +116,7 @@ bool msc_disk_mount(const char *path) {
 
     const tinyusb_msc_spiflash_config_t config_spi = {.wl_handle = wl_handle};
     ESP_ERROR_CHECK(tinyusb_msc_storage_init_spiflash(&config_spi));
-    ESP_LOGI(TAG, "xx...");
+    // ESP_LOGI(TAG, "xx...");
 #else
     static sdmmc_card_t *card = NULL;
 

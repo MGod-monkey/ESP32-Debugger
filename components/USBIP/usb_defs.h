@@ -187,13 +187,13 @@ typedef struct
 {
     uint8_t *cur_altsetting;
     uint8_t num_altsetting;
-    const struct usb_config_descriptor_s *iface_assoc;
-    const struct usb_interface_descriptor_s *altsetting;
+    const struct usb_iface_assoc_descriptor *iface_assoc;
+    const struct usb_interface_descriptor *altsetting;
 } __attribute__((packed)) usb_interface;
 
 ///////////////////////////////////////////////////////////////
 /* USB Standard Configuration Descriptor - Table 9-10 */
-typedef struct usb_config_descriptor_s
+typedef struct
 {
     uint8_t bLength;
     uint8_t bDescriptorType;
@@ -218,7 +218,7 @@ typedef struct usb_config_descriptor_s
 
 ///////////////////////////////////////////////////////////////
 /* USB Standard Interface Descriptor - Table 9-12 */
-typedef struct usb_interface_descriptor_s
+typedef struct
 {
     uint8_t bLength;
     uint8_t bDescriptorType;

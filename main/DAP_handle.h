@@ -17,6 +17,6 @@ void handle_dap_unlink();
 
 void DAP_Thread(void *argument);
 
-int fast_reply(uint8_t *buf, uint32_t length);
+int fast_reply(uint8_t *buf, uint32_t length, int dap_req_num);
 
 #endif

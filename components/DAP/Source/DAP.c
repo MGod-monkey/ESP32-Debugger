@@ -1,7 +1,5 @@
 /*
- * Copyright (c) 2013-2021 ARM Limited. All rights reserved.
- * Copyright 2019, Cypress Semiconductor Corporation
- * or a subsidiary of Cypress Semiconductor Corporation.
+ * Copyright (c) 2013-2017 ARM Limited. All rights reserved.
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -19,8 +17,8 @@
  *
  * ----------------------------------------------------------------------
  *
- * $Date:        7. September 2021
- * $Revision:    V2.1.1
+ * $Date:        16. June 2021
+ * $Revision:    V2.1.0
  *
  * Project:      CMSIS-DAP Source
  * Title:        DAP.c CMSIS-DAP Commands
@@ -31,10 +29,13 @@
 #ifdef RTE_CMSIS_RTOS
 #include "cmsis_os.h"
 #endif
-#include "DAP_config.h"
-#include "DAP.h"
-#include "dap_strings.h"
 
+#include "components/DAP/config/DAP_config.h"
+#include "components/DAP/include/DAP.h"
+#include "components/DAP/include/spi_switch.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #if (DAP_PACKET_SIZE < 64U)
 #error "Minimum Packet Size is 64!"
@@ -54,6 +55,9 @@
 
 #define MAX_SWJ_CLOCK(delay_cycles) \
   ((CPU_CLOCK/2U) / (IO_PORT_WRITE_CYCLES + delay_cycles))
+
+#define CLOCK_DELAY(swj_clock) \
+ (((CPU_CLOCK/2U) / swj_clock) - IO_PORT_WRITE_CYCLES)
 
 
          DAP_Data_t DAP_Data;           // DAP Data
@@ -205,7 +209,7 @@ static uint32_t DAP_HostStatus(const uint8_t *request, uint8_t *response) {
 
   switch (*request) {
     case DAP_DEBUGGER_CONNECTED:
-      // LED_CONNECTED_OUT((*(request+1) & 1U));
+      LED_CONNECTED_OUT((*(request+1) & 1U));
       break;
     case DAP_TARGET_RUNNING:
       LED_RUNNING_OUT((*(request+1) & 1U));
@@ -238,7 +242,8 @@ static uint32_t DAP_Connect(const uint8_t *request, uint8_t *response) {
 #if (DAP_SWD != 0)
     case DAP_PORT_SWD:
       DAP_Data.debug_port = DAP_PORT_SWD;
-      PORT_SWD_SETUP();
+      if (SWD_TransferSpeed != kTransfer_SPI)
+        PORT_SWD_SETUP();
       break;
 #endif
 #if (DAP_JTAG != 0)
@@ -275,6 +280,22 @@ static uint32_t DAP_Disconnect(uint8_t *response) {
 //   return:   number of bytes in response
 static uint32_t DAP_ResetTarget(uint8_t *response) {
 
+#if (USE_FORCE_SYSRESETREQ_AFTER_FLASH)
+  if (DAP_Data.debug_port == DAP_PORT_SWD) {
+    /* Workaround for software reset when nRESET is not connected */
+    uint8_t ack;
+    uint32_t AIRCR_REG_ADDR = 0xE000ED0C;
+    uint32_t AIRCR_RESET_VAL = 0x05FA << 16 | 1 << 2; /* Vector key | SYSRESETREQ bit */
+    uint8_t req = DAP_TRANSFER_APnDP | 0 | DAP_TRANSFER_A2 | 0;
+    ack = SWD_Transfer(req,&AIRCR_REG_ADDR);
+    if (ack == DAP_TRANSFER_OK) {
+      dap_os_delay(2);
+      req = DAP_TRANSFER_APnDP | 0 | DAP_TRANSFER_A2 | DAP_TRANSFER_A3;
+      SWD_Transfer(req,&AIRCR_RESET_VAL);
+    }
+  }
+#endif
+
   *(response+1) = RESET_TARGET();
   *(response+0) = DAP_OK;
   return (2U);
@@ -288,6 +309,9 @@ static uint32_t DAP_ResetTarget(uint8_t *response) {
 //             number of bytes in request (upper 16 bits)
 static uint32_t DAP_SWJ_Pins(const uint8_t *request, uint8_t *response) {
 #if ((DAP_SWD != 0) || (DAP_JTAG != 0))
+  if (SWD_TransferSpeed == kTransfer_SPI)
+    DAP_SPI_Deinit();
+
   uint32_t value;
   uint32_t select;
   uint32_t wait;
@@ -380,34 +404,13 @@ static uint32_t DAP_SWJ_Pins(const uint8_t *request, uint8_t *response) {
   *response = 0U;
 #endif
 
+  if (SWD_TransferSpeed == kTransfer_SPI) // restore
+    DAP_SPI_Init();
+
   return ((6U << 16) | 1U);
 }
 
-
-// Common clock delay calculation routine
-//   clock:    requested SWJ frequency in Hertz
-//   return:   void
-static void Set_DAP_Clock_Delay(uint32_t clock) {
-  uint32_t delay;
-
-  if (clock >= MAX_SWJ_CLOCK(DELAY_FAST_CYCLES)) {
-    DAP_Data.fast_clock  = 1U;
-    DAP_Data.clock_delay = 1U;
-  } else {
-    DAP_Data.fast_clock  = 0U;
-
-    delay = ((CPU_CLOCK/2U) + (clock - 1U)) / clock;
-    if (delay > IO_PORT_WRITE_CYCLES) {
-      delay -= IO_PORT_WRITE_CYCLES;
-      delay  = (delay + (DELAY_SLOW_CYCLES - 1U)) / DELAY_SLOW_CYCLES;
-    } else {
-      delay  = 1U;
-    }
-
-    DAP_Data.clock_delay = delay;
-  }
-}
-
+extern uint8_t SWD_TransferSpeed;
 
 // Process SWJ Clock command and prepare response
 //   request:  pointer to request data
@@ -417,6 +420,7 @@ static void Set_DAP_Clock_Delay(uint32_t clock) {
 static uint32_t DAP_SWJ_Clock(const uint8_t *request, uint8_t *response) {
 #if ((DAP_SWD != 0) || (DAP_JTAG != 0))
   uint32_t clock;
+  uint32_t delay;
 
   clock = (uint32_t)(*(request+0) <<  0) |
           (uint32_t)(*(request+1) <<  8) |
@@ -428,9 +432,50 @@ static uint32_t DAP_SWJ_Clock(const uint8_t *request, uint8_t *response) {
     return ((4U << 16) | 1U);
   }
 
-  DAP_Data.nominal_clock = clock;
+  // Note that the maximum IO frequency of esp8266 is less than 2MHz
 
-  Set_DAP_Clock_Delay(clock);
+  // clock >= 10MHz -> use 40MHz SPI
+  if (clock >= 10000000) {
+    if (DAP_Data.debug_port != DAP_PORT_JTAG) {
+      DAP_SPI_Init();
+      SWD_TransferSpeed = kTransfer_SPI;
+    } else {
+      SWD_TransferSpeed = kTransfer_GPIO_fast;
+    }
+    DAP_Data.fast_clock  = 1U;
+    DAP_Data.clock_delay = 1U;
+
+  } else if (clock >= 2000000) {
+    // clock >= 2MHz -> Use GPIO with no program delay
+    DAP_SPI_Deinit();
+    DAP_Data.fast_clock  = 1U;
+    DAP_Data.clock_delay = 1U;
+    SWD_TransferSpeed = kTransfer_GPIO_fast;
+  } else {
+    // clock < 2MHz -> Use GPIO with delay
+    DAP_SPI_Deinit();
+    DAP_Data.fast_clock  = 0U;
+    SWD_TransferSpeed = kTransfer_GPIO_normal;
+
+
+#ifdef CONFIG_IDF_TARGET_ESP8266
+  #define BUS_CLOCK_FIXED 80000000
+#elif defined CONFIG_IDF_TARGET_ESP32 || defined CONFIG_IDF_TARGET_ESP32S3
+  #define BUS_CLOCK_FIXED 100000000
+#elif defined CONFIG_IDF_TARGET_ESP32C3
+  #define BUS_CLOCK_FIXED 80000000
+#endif
+
+    delay = ((BUS_CLOCK_FIXED/2U) + (clock - 1U)) / clock;
+    if (delay > IO_PORT_WRITE_CYCLES) {
+      delay -= IO_PORT_WRITE_CYCLES;
+      delay  = (delay + (DELAY_SLOW_CYCLES - 1U)) / DELAY_SLOW_CYCLES;
+    } else {
+      delay  = 1U;
+    }
+
+    DAP_Data.clock_delay = delay;
+  }
 
   *response = DAP_OK;
 #else
@@ -518,15 +563,16 @@ static uint32_t DAP_SWD_Sequence(const uint8_t *request, uint8_t *response) {
     }
     count = (count + 7U) / 8U;
 #if (DAP_SWD != 0)
-    if ((sequence_info & SWD_SEQUENCE_DIN) != 0U) {
-      PIN_SWDIO_OUT_DISABLE();
-    } else {
-      PIN_SWDIO_OUT_ENABLE();
-    }
+    ////FIXME: ?
+    // if ((sequence_info & SWD_SEQUENCE_DIN) != 0U) {
+    //   PIN_SWDIO_OUT_DISABLE();
+    // } else {
+    //   PIN_SWDIO_OUT_ENABLE();
+    // }
     SWD_Sequence(sequence_info, request, response);
-    if (sequence_count == 0U) {
-      PIN_SWDIO_OUT_ENABLE();
-    }
+    // if (sequence_count == 0U) {
+    //   PIN_SWDIO_OUT_ENABLE();
+    // }
 #endif
     if ((sequence_info & SWD_SEQUENCE_DIN) != 0U) {
       request_count++;
@@ -1665,7 +1711,6 @@ uint32_t DAP_ProcessCommand(const uint8_t *request, uint8_t *response) {
   if ((*request >= ID_DAP_Vendor0) && (*request <= ID_DAP_Vendor31)) {
     return DAP_ProcessVendorCommand(request, response);
   }
-
   if ((*request >= ID_DAP_VendorExFirst) && (*request <= ID_DAP_VendorExLast)) {
     return DAP_ProcessVendorCommandEx(request, response);
   }
@@ -1820,7 +1865,8 @@ void DAP_Setup(void) {
 
   // Default settings
   DAP_Data.debug_port  = 0U;
-  DAP_Data.nominal_clock = DAP_DEFAULT_SWJ_CLOCK;
+  DAP_Data.fast_clock  = 0U;
+  DAP_Data.clock_delay = CLOCK_DELAY(DAP_DEFAULT_SWJ_CLOCK);
   DAP_Data.transfer.idle_cycles = 0U;
   DAP_Data.transfer.retry_count = 100U;
   DAP_Data.transfer.match_retry = 0U;
@@ -1833,8 +1879,11 @@ void DAP_Setup(void) {
   DAP_Data.jtag_dev.count = 0U;
 #endif
 
-  // Sets DAP_Data.fast_clock and DAP_Data.clock_delay.
-  Set_DAP_Clock_Delay(DAP_DEFAULT_SWJ_CLOCK);
-
   DAP_SETUP();  // Device specific setup
+}
+
+
+void dap_os_delay(int ms)
+{
+  vTaskDelay(pdMS_TO_TICKS(ms));
 }

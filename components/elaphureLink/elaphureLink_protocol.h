@@ -15,7 +15,7 @@ typedef struct
 {
     uint32_t el_link_identifier;
     uint32_t command;
-    uint32_t el_proxy_version;
+    uint32_t el_proxy_version
 } __attribute__((packed)) el_request_handshake;
 
 
@@ -23,7 +23,7 @@ typedef struct
 {
     uint32_t el_link_identifier;
     uint32_t command;
-    uint32_t el_dap_version;
+    uint32_t el_dap_version
 } __attribute__((packed)) el_response_handshake;
 
 
@@ -46,6 +46,8 @@ int el_handshake_process(int fd, void* buffer, size_t len);
  */
 void el_dap_data_process(void* buffer, size_t len);
 
+
+int el_dap_work(uint8_t* base, size_t len);
 
 void el_process_buffer_malloc();
 void el_process_buffer_free();

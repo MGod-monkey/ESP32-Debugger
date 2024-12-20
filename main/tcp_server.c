@@ -20,7 +20,7 @@ extern int kRestartDAPHandle;
 extern TaskHandle_t kWifiTcpServerTaskhandle;
 
 bool tcpserver_run = false;
-uint8_t kState = ACCEPTING;
+enum state_t kState = ACCEPTING;
 int kSock = -1;
 
 static const char *TAG = "tcp_server";
@@ -28,10 +28,14 @@ static const char *TAG = "tcp_server";
 #if SINGLE_MODE == 1
     void tcp_server_task(void *pvParameters)
     {
-        uint8_t tcp_rx_buffer[1500];
+        uint8_t tcp_rx_buffer[1500] = {0};
         char addr_str[128];
-        int addr_family;
+        enum usbip_server_state_t usbip_state = WAIT_DEVLIST;
+        uint8_t *data;
+        int addr_family; 
         int ip_protocol;
+        int header;
+        int ret, sz;
 
         int on = 1;
         while (1) {
@@ -39,57 +43,57 @@ static const char *TAG = "tcp_server";
             ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
             while (tcpserver_run)
             {
-                #ifdef CONFIG_EXAMPLE_IPV4
-                        struct sockaddr_in destAddr;
-                        destAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-                        destAddr.sin_family = AF_INET;
-                        destAddr.sin_port = htons(PORT);
-                        addr_family = AF_INET;
-                        ip_protocol = IPPROTO_IP;
-                        inet_ntoa_r(destAddr.sin_addr, addr_str, sizeof(addr_str) - 1);
-                #else // IPV6
-                        struct sockaddr_in6 destAddr;
-                        bzero(&destAddr.sin6_addr.un, sizeof(destAddr.sin6_addr.un));
-                        destAddr.sin6_family = AF_INET6;
-                        destAddr.sin6_port = htons(PORT);
-                        addr_family = AF_INET6;
-                        ip_protocol = IPPROTO_IPV6;
-                        inet6_ntoa_r(destAddr.sin6_addr, addr_str, sizeof(addr_str) - 1);
-                #endif
+            #ifdef CONFIG_EXAMPLE_IPV4
+                struct sockaddr_in destAddr;
+                destAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+                destAddr.sin_family = AF_INET;
+                destAddr.sin_port = htons(PORT);
+                addr_family = AF_INET;
+                ip_protocol = IPPROTO_IP;
+                inet_ntoa_r(destAddr.sin_addr, addr_str, sizeof(addr_str) - 1);
+            #else // IPV6
+                struct sockaddr_in6 destAddr;
+                bzero(&destAddr.sin6_addr.un, sizeof(destAddr.sin6_addr.un));
+                destAddr.sin6_family = AF_INET6;
+                destAddr.sin6_port = htons(PORT);
+                addr_family = AF_INET6;
+                ip_protocol = IPPROTO_IPV6;
+                inet6_ntoa_r(destAddr.sin6_addr, addr_str, sizeof(addr_str) - 1);
+            #endif
 
-                        int listen_sock = socket(addr_family, SOCK_STREAM, ip_protocol);
-                        if (listen_sock < 0)
-                        {
-                            os_printf("Unable to create socket: errno %d\r\n", errno);
-                            break;
-                        }
-                        os_printf("Socket created\r\n");
+                int listen_sock = socket(addr_family, SOCK_STREAM, ip_protocol);
+                if (listen_sock < 0)
+                {
+                    os_printf("Unable to create socket: errno %d\r\n", errno);
+                    break;
+                }
+                os_printf("Socket created\r\n");
 
-                        setsockopt(listen_sock, SOL_SOCKET, SO_KEEPALIVE, (void *)&on, sizeof(on));
-                        setsockopt(listen_sock, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
+                setsockopt(listen_sock, SOL_SOCKET, SO_KEEPALIVE, (void *)&on, sizeof(on));
+                setsockopt(listen_sock, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
 
-                        int err = bind(listen_sock, (struct sockaddr *)&destAddr, sizeof(destAddr));
-                        if (err != 0)
-                        {
-                            os_printf("Socket unable to bind: errno %d\r\n", errno);
-                            break;
-                        }
-                        os_printf("Socket binded\r\n");
+                int err = bind(listen_sock, (struct sockaddr *)&destAddr, sizeof(destAddr));
+                if (err != 0)
+                {
+                    os_printf("Socket unable to bind: errno %d\r\n", errno);
+                    break;
+                }
+                os_printf("Socket binded\r\n");
 
-                        err = listen(listen_sock, 1);
-                        if (err != 0)
-                        {
-                            os_printf("Error occured during listen: errno %d\r\n", errno);
-                            break;
-                        }
-                        os_printf("Socket listening\r\n");
+                err = listen(listen_sock, 1);
+                if (err != 0)
+                {
+                    os_printf("Error occured during listen: errno %d\r\n", errno);
+                    break;
+                }
+                os_printf("Socket listening\r\n");
 
                 #ifdef CONFIG_EXAMPLE_IPV6
-                        struct sockaddr_in6 sourceAddr; // Large enough for both IPv4 or IPv6
+                    struct sockaddr_in6 sourceAddr; // Large enough for both IPv4 or IPv6
                 #else
-                        struct sockaddr_in sourceAddr;
+                    struct sockaddr_in sourceAddr;
                 #endif
-                        uint32_t addrLen = sizeof(sourceAddr);
+                uint32_t addrLen = sizeof(sourceAddr);
                 while (tcpserver_run)
                 {
                     kSock = accept(listen_sock, (struct sockaddr *)&sourceAddr, &addrLen);
@@ -102,75 +106,43 @@ static const char *TAG = "tcp_server";
                     setsockopt(kSock, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
                     os_printf("Socket accepted\r\n");
 
-                    while (tcpserver_run)
-                    {
-                        int len = recv(kSock, tcp_rx_buffer, sizeof(tcp_rx_buffer), 0);
-                        // Error occured during receiving
-                        if (len < 0)
-                        {
-                            os_printf("recv failed: errno %d\r\n", errno);
-                            break;
-                        }
-                        // Connection closed
-                        else if (len == 0)
-                        {
-                            os_printf("Connection closed\r\n");
-                            break;
-                        }
-                        // Data received
+                    // Read header
+                    sz = 4;
+                    data = &tcp_rx_buffer[0];
+                    do {
+                        ret = recv(kSock, data, sz, 0);
+                        if (ret <= 0)
+                            goto cleanup;
+                        sz -= ret;
+                        data += ret;
+                    } while (sz > 0);
+
+                    header = *((int *)(tcp_rx_buffer));
+                    header = ntohl(header);
+
+                    if (header == EL_LINK_IDENTIFIER) {
+                        el_dap_work(tcp_rx_buffer, sizeof(tcp_rx_buffer));
+                    } else if ((header & 0xFFFF) == 0x8003 ||
+                            (header & 0xFFFF) == 0x8005) { // usbip OP_REQ_DEVLIST/OP_REQ_IMPORT
+                        if ((header & 0xFFFF) == 0x8005)
+                            usbip_state = WAIT_DEVLIST;
                         else
-                        {
-                            // #ifdef CONFIG_EXAMPLE_IPV6
-                            //                     // Get the sender's ip address as string
-                            //                     if (sourceAddr.sin6_family == PF_INET)
-                            //                     {
-                            //                         inet_ntoa_r(((struct sockaddr_in *)&sourceAddr)->sin_addr.s_addr, addr_str, sizeof(addr_str) - 1);
-                            //                     }
-                            //                     else if (sourceAddr.sin6_family == PF_INET6)
-                            //                     {
-                            //                         inet6_ntoa_r(sourceAddr.sin6_addr, addr_str, sizeof(addr_str) - 1);
-                            //                     }
-                            // #else
-                            //                     inet_ntoa_r(((struct sockaddr_in *)&sourceAddr)->sin_addr.s_addr, addr_str, sizeof(addr_str) - 1);
-                            // #endif
-
-                            switch (kState)
-                            {
-                            case ACCEPTING:
-                                kState = ATTACHING;
-                                // fallthrough
-                            case ATTACHING:
-                                // elaphureLink handshake
-                                if (el_handshake_process(kSock, tcp_rx_buffer, len) == 0) {
-                                    // handshake successed
-                                    kState = EL_DATA_PHASE;
-                                    kRestartDAPHandle = DELETE_HANDLE;
-                                    el_process_buffer_malloc();
-                                    break;
-                                }
-
-                                attach(tcp_rx_buffer, len);
-                                break;
-
-                            case EMULATING:
-                                emulate(tcp_rx_buffer, len);
-                                break;
-                            case EL_DATA_PHASE:
-                                el_dap_data_process(tcp_rx_buffer, len);
-                                break;
-                            default:
-                                os_printf("unkonw kstate!\r\n");
-                            }
-                        }
+                            usbip_state = WAIT_IMPORT;
+                        usbip_worker(tcp_rx_buffer, sizeof(tcp_rx_buffer), &usbip_state);
+                    } else if (header == 0x47455420) { // string "GET "
+                        #ifdef CONFIG_USE_WEBSOCKET_DAP
+                            websocket_worker(kSock, tcp_rx_buffer, sizeof(tcp_rx_buffer));
+                        #endif
+                    } else {
+                        os_printf("Unknown protocol\n");
                     }
-                    // kState = ACCEPTING;
+
+                cleanup:
                     if (kSock != -1)
                     {
                         os_printf("Shutting down socket and restarting...\r\n");
                         //shutdown(kSock, 0);
                         close(kSock);
-                        if (kState == EMULATING || kState == EL_DATA_PHASE)
-                            kState = ACCEPTING;
 
                         // Restart DAP Handle
                         el_process_buffer_free();
@@ -179,9 +151,9 @@ static const char *TAG = "tcp_server";
                         if (kDAPTaskHandle)
                             xTaskNotifyGive(kDAPTaskHandle);
 
-                        // shutdown(listen_sock, 0);
-                        // close(listen_sock);
-                        // vTaskDelay(5);
+                        //shutdown(listen_sock, 0);
+                        //close(listen_sock);
+                        //vTaskDelay(5);
                     }
                 }
             }
@@ -425,7 +397,7 @@ static const char *TAG = "tcp_server";
 
                 // 检查串口数据
                 size_t uart_len;
-                ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_NUM_0, &uart_len));
+                ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_PORT, &uart_len));
                 if (uart_len > 0) {
                     // 分配缓冲区
                     uint8_t* uart_data = (uint8_t*)malloc(uart_len);
@@ -433,7 +405,7 @@ static const char *TAG = "tcp_server";
                     
                     if (uart_data && send_buf) {
                         // 读取UART数据
-                        int read_len = uart_read_bytes(UART_NUM_0, uart_data, uart_len, pdMS_TO_TICKS(20));
+                        int read_len = uart_read_bytes(UART_PORT, uart_data, uart_len, pdMS_TO_TICKS(20));
                         
                         if (read_len > 0) {
                             // 构建发送数据包
@@ -457,28 +429,39 @@ static const char *TAG = "tcp_server";
                 {
                     if (D2_len == 7)
                     {
-                        // 计算波特率
-                        baud = (USART2_RX_BUF[0] - '0') * 1000000 + 
-                            (USART2_RX_BUF[1] - '0') * 100000 + 
-                            (USART2_RX_BUF[2] - '0') * 10000 + 
-                            (USART2_RX_BUF[3] - '0') * 1000 + 
-                            (USART2_RX_BUF[4] - '0') * 100 + 
-                            (USART2_RX_BUF[5] - '0') * 10 + 
-                            (USART2_RX_BUF[6] - '0') * 1;
+                    // 计算波特率
+                    baud = (USART2_RX_BUF[0] - '0') * 1000000 + 
+                        (USART2_RX_BUF[1] - '0') * 100000 + 
+                        (USART2_RX_BUF[2] - '0') * 10000 + 
+                        (USART2_RX_BUF[3] - '0') * 1000 + 
+                        (USART2_RX_BUF[4] - '0') * 100 + 
+                        (USART2_RX_BUF[5] - '0') * 10 + 
+                        (USART2_RX_BUF[6] - '0') * 1;
 
-                        // 配置UART参数
-                        uart_config_t uart_config = {
-                            .baud_rate = baud,
-                            .data_bits = UART_DATA_8_BITS,
-                            .parity = UART_PARITY_DISABLE,
-                            .stop_bits = UART_STOP_BITS_1,
-                            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-                            .rx_flow_ctrl_thresh = 122,
-                            .source_clk = UART_SCLK_DEFAULT
-                        };
-                        
-                        // 重新配置UART
-                        ESP_ERROR_CHECK(uart_param_config(UART_NUM_0, &uart_config));
+                    // 验证波特率范围
+                    if (baud < 110 || baud > 4500000) {
+                        baud = 115200; // 使用默认波特率
+                    }
+
+                    // 配置UART参数
+                    uart_config_t uart_config = {
+                        .baud_rate = baud,
+                        .data_bits = UART_DATA_8_BITS,
+                        .parity = UART_PARITY_DISABLE,
+                        .stop_bits = UART_STOP_BITS_1,
+                        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+                        .rx_flow_ctrl_thresh = 122,
+                        .source_clk = UART_SCLK_DEFAULT
+                    };
+                    
+                    // 使用错误处理宏替代ESP_ERROR_CHECK
+                    esp_err_t err = uart_param_config(UART_PORT, &uart_config);
+                    if (err != ESP_OK) {
+                        ESP_LOGE(TAG, "Failed to configure UART parameters: %d", err);
+                        // 恢复默认配置
+                        uart_config.baud_rate = 115200;
+                        uart_param_config(UART_PORT, &uart_config);
+                    }
                     }
                     else if (D2_len == 1)
                     {
@@ -495,9 +478,9 @@ static const char *TAG = "tcp_server";
                             // 清空串口缓冲区
                             uint8_t temp_buf[256];
                             size_t length = 0;
-                            ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_NUM_0, &length));
+                            ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_PORT, &length));
                             if (length > 0) {
-                                uart_read_bytes(UART_NUM_0, temp_buf, length, pdMS_TO_TICKS(20));
+                                uart_read_bytes(UART_PORT, temp_buf, length, pdMS_TO_TICKS(20));
                             }
                         }
                     }
@@ -600,15 +583,15 @@ static const char *TAG = "tcp_server";
                                 // 清空串口缓冲区
                                 uint8_t temp_buf[256];
                                 size_t length = 0;
-                                ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_NUM_0, &length));
+                                ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_PORT, &length));
                                 if (length > 0) {
-                                    uart_read_bytes(UART_NUM_0, temp_buf, length, pdMS_TO_TICKS(20));
+                                    uart_read_bytes(UART_PORT, temp_buf, length, pdMS_TO_TICKS(20));
                                 }
                             }
                         }
                         // 发送单字节数据
-                        uart_write_bytes(UART_NUM_0, &USART3_RX_BUF[0], 1);
-                        uart_wait_tx_done(UART_NUM_0, pdMS_TO_TICKS(100));
+                        uart_write_bytes(UART_PORT, &USART3_RX_BUF[0], 1);
+                        uart_wait_tx_done(UART_PORT, pdMS_TO_TICKS(100));
                     } 
                     else if (len == 2) {
                         if (USART3_RX_BUF[0] == 0x30) {
@@ -625,24 +608,24 @@ static const char *TAG = "tcp_server";
                                     // 清空串口缓冲区
                                     uint8_t temp_buf[256];
                                     size_t length = 0;
-                                    ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_NUM_0, &length));
+                                    ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_PORT, &length));
                                     if (length > 0) {
-                                        uart_read_bytes(UART_NUM_0, temp_buf, length, pdMS_TO_TICKS(20));
+                                        uart_read_bytes(UART_PORT, temp_buf, length, pdMS_TO_TICKS(20));
                                     }
                                     vTaskDelay(pdMS_TO_TICKS(300));
                                 }
                             }
                         }
                         // 发送两字节数据
-                        uart_write_bytes(UART_NUM_0, USART3_RX_BUF, 2);
-                        uart_wait_tx_done(UART_NUM_0, pdMS_TO_TICKS(100));
+                        uart_write_bytes(UART_PORT, USART3_RX_BUF, 2);
+                        uart_wait_tx_done(UART_PORT, pdMS_TO_TICKS(100));
                     }
                     else
                     {
                         // 发送多字节数据
-                        uart_write_bytes(UART_NUM_0, USART3_RX_BUF, len);
+                        uart_write_bytes(UART_PORT, USART3_RX_BUF, len);
                         // 等待发送完成
-                        uart_wait_tx_done(UART_NUM_0, pdMS_TO_TICKS(100)); // 100ms超时
+                        uart_wait_tx_done(UART_PORT, pdMS_TO_TICKS(100)); // 100ms超时
                     }
                     num2 = 0; // 清空接收到的次数
                     USART3_RX_STA = 0;

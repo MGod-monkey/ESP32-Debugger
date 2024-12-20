@@ -33,7 +33,7 @@
 extern TaskHandle_t kDAPTaskHandle;
 extern int kRestartDAPHandle;
 extern int kSock;
-extern uint8_t kState;
+extern enum state_t kState;
 
 static struct sockaddr_in client_addr = { 0 };
 static char kcp_buffer[MTU_SIZE];
