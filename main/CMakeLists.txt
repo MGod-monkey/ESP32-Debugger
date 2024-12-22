@@ -1,4 +1,4 @@
-idf_component_register(SRCS "main.cpp" 
+idf_component_register(SRCS "led.c" "main.cpp" 
                         "cdc_uart.c"
                         "msc_disk.c"
                         "web_handler.cpp"
@@ -9,7 +9,6 @@ idf_component_register(SRCS "main.cpp"
                         "programmer.cpp"
                         "tcp_netconn.c"
                         "tcp_server.c"
-                        "wifi_rssi_led.c"
                         "wifi_handle.c"
                         "usbip_server.c"
                         "kcp_server.c"
@@ -22,7 +21,8 @@ idf_component_register(SRCS "main.cpp"
                         INCLUDE_DIRS 
                         "./"
                         "./include"
-                        EMBED_FILES "../html/root.html"
+                        EMBED_FILES
+                        "../html/root.html"
                         "../html/favicon.ico"
                         "../html/program.html"
                         "../html/webserial.html")

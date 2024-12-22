@@ -32,7 +32,6 @@
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. Typical vales are 64 for Full-speed USB HID or WinUSB,
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
-
 #if (USE_WINUSB == 1)
     // #define DAP_PACKET_SIZE 512U // 512 for WinUSB.
     #define DAP_PACKET_SIZE 64U // 64 for WinUSB.
@@ -53,5 +52,20 @@
  */
 
 #define SINGLE_MODE 0
+
+/**
+ * @brief 启动时默认的调试模式
+ * 
+*/
+#define WIRED_MODE      1
+#define WIRELESS_MODE   0
+
+#define DEFAULT_DEBUG_MODE WIRED_MODE
+
+/**
+ * @brief 模式切换按钮阈值（ms）
+ * 
+*/
+#define LONG_PRESS_TIME_MS 2000
 
 #endif

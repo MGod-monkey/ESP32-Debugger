@@ -9,6 +9,7 @@ extern "C" {
 extern TaskHandle_t kWifiTcpServerTaskhandle;
 
 void wifi_init(void);
+void wifi_stop(void);
 void mdns_setup(void);
 // void wifi_monitor_task(void *pvParameters);
 

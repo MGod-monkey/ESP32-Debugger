@@ -51,6 +51,7 @@
 #include "usb_desc.h"
 #include "msc_disk.h"
 #include "tusb_tasks.h"
+#include "tusb_msc_storage.h"
 
 #include "os.h"
 #include "cJSON.h"
@@ -67,7 +68,7 @@
 #include "mdns.h"
 #include "uart_bridge.h"
 #include "hal_gpio.h"
-#include "wifi_rssi_led.h"
+#include "led.h"
 
 typedef enum
 {

@@ -16,7 +16,7 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "lwip/ip4_addr.h"
-#include "wifi_rssi_led.h"
+#include "led.h"
 #include "tcp_server.h"
 
 // #if defined CONFIG_IDF_TARGET_ESP32S3
@@ -84,10 +84,21 @@ static void ssid_change(void)
         },
     };
 
+    // 检查WiFi状态
+    wifi_mode_t mode;
+    if (esp_wifi_get_mode(&mode) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get WiFi mode");
+        return;
+    }
+
     strcpy((char *)wifi_config.sta.ssid, wifi_list[ssid_index].ssid);
     strcpy((char *)wifi_config.sta.password, wifi_list[ssid_index].password);
     ssid_index++;
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+    esp_err_t err = esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Set WiFi config failed: %s", esp_err_to_name(err));
+        return;
+    }
 }
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
@@ -110,9 +121,9 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                 ssid_change();
                 esp_wifi_connect();
                 xEventGroupClearBits(wifi_event_group, IPV4_GOTIP_BIT);
-#if (USE_UART_BRIDGE == 1)
+            #if (USE_UART_BRIDGE == 1)
                 uart_bridge_close();
-#endif
+            #endif
                 break;
             default:
                 break;
@@ -165,106 +176,26 @@ static void connect_handler(void *arg, esp_event_base_t event_base, int32_t even
     web_server_init((httpd_handle_t *)arg);
 }
 
-static bool wifi_initialized = false;
-
-// void wifi_init(void)
-// {
-//     // GPIO_FUNCTION_SET(PIN_LED_WIFI_STATUS);
-//     // GPIO_SET_DIRECTION_NORMAL_OUT(PIN_LED_WIFI_STATUS);
-
-//     // 初始化底层TCP/IP栈
-//     // ESP_ERROR_CHECK(esp_netif_init());
-//     // ESP_ERROR_CHECK(esp_event_loop_create_default());
-//     // ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, connect_handler, &http_server));
-//     // ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, disconnect_handler, &http_server));
-//     if (!wifi_initialized) {
-//         ESP_ERROR_CHECK(nvs_flash_init());
-//         ESP_ERROR_CHECK(esp_event_loop_create_default());
-//         sta_netif = esp_netif_create_default_wifi_sta();
-//         #if (USE_MDNS == 1)
-//             mdns_setup();
-//         #endif
-//         xTaskCreate(signalLED_change_task, "signalLED_change_task", 2048, NULL, 5, NULL);
-//     }
-
-// #if (USE_STATIC_IP == 1)
-//     esp_netif_dhcpc_stop(sta_netif);
-//     esp_netif_ip_info_t ip_info = {0};
-    
-//     // // 方法1：使用esp_netif_str_to_ip4
-//     // esp_netif_str_to_ip4(DAP_IP_ADDRESS, &ip_info.ip);
-//     // esp_netif_str_to_ip4(DAP_IP_GATEWAY, &ip_info.gw);
-//     // esp_netif_str_to_ip4(DAP_IP_NETMASK, &ip_info.netmask);
-    
-//     // 或者方法2：直接设置IP地址（推荐）
-//     #define MY_IP4_ADDR(...) IP4_ADDR(__VA_ARGS__)
-//     IP4_ADDR(&ip_info.ip, 192, 168, 137, 123);
-//     IP4_ADDR(&ip_info.gw, 192, 168, 137, 1);
-//     IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
-//     #undef MY_IP4_ADDR
-    
-//     esp_netif_set_ip_info(sta_netif, &ip_info);
-// #endif
-
-//     wifi_event_group = xEventGroupCreate();
-
-//     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-//                                                     ESP_EVENT_ANY_ID,
-//                                                     &wifi_event_handler,
-//                                                     NULL,
-//                                                     NULL));
-//     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-//                                                     IP_EVENT_STA_GOT_IP,
-//                                                     &wifi_event_handler,
-//                                                     NULL,
-//                                                     NULL));
-
-//     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-//     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-//     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-//     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-//     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
-    
-//     ssid_change();
-//     ESP_ERROR_CHECK(esp_wifi_start());
-
-//     wait_for_ip();
-//     wifi_initialized = true;
-// }
-
 void wifi_init(void)
 {
-    if (!wifi_initialized) {
-        ESP_ERROR_CHECK(nvs_flash_init());
-        ESP_ERROR_CHECK(esp_netif_init());
-        ESP_ERROR_CHECK(esp_event_loop_create_default());
-        sta_netif = esp_netif_create_default_wifi_sta();
-        
-        wifi_event_group = xEventGroupCreate();
-        ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                        ESP_EVENT_ANY_ID,
-                                                        &wifi_event_handler,
-                                                        NULL,
-                                                        NULL));
-        ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                                                        IP_EVENT_STA_GOT_IP,
-                                                        &wifi_event_handler,
-                                                        NULL,
-                                                        NULL));
-        
-        #if (SINGLE_MODE == 1)
-            #if (USE_TCP_NETCONN == 1)
-                xTaskCreate(tcp_netconn_task, "tcp_server", 4096, NULL, 14, NULL);
-            #else
-                xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 14, &kWifiTcpServerTaskhandle);
-            #endif
-        #else
-            xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 14, &kWifiTcpServerTaskhandle);
-        #endif
-        mdns_setup();
-        // 移除 wait_for_ip() 调用
-        wifi_initialized = true;
-    }
+    ESP_ERROR_CHECK(nvs_flash_init());
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    sta_netif = esp_netif_create_default_wifi_sta();
+    
+    wifi_event_group = xEventGroupCreate();
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                    ESP_EVENT_ANY_ID,
+                                                    &wifi_event_handler,
+                                                    NULL,
+                                                    NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                    IP_EVENT_STA_GOT_IP,
+                                                    &wifi_event_handler,
+                                                    NULL,
+                                                    NULL));
+
+    mdns_setup();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -275,7 +206,18 @@ void wifi_init(void)
     ESP_ERROR_CHECK(esp_wifi_start());   
 }
 
-// void wifi_monitor_task(void *pvParameters)
-// {
-//     wait_for_ip();
-// }
+void wifi_stop(void)
+{
+    tcpserver_run = false;
+    if (kWifiTcpServerTaskhandle != NULL) {
+        xTaskNotifyGive(kWifiTcpServerTaskhandle);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    esp_wifi_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(100));
+    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler));
+    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event_handler));
+    esp_wifi_stop();
+    esp_wifi_deinit();
+}

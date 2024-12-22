@@ -109,7 +109,6 @@ static void cdc_uart_rx_task(void *param)
             //     }
             // }
         }
-        
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
