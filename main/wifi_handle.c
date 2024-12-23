@@ -28,7 +28,7 @@
 static const char *TAG = "wifi";
 static EventGroupHandle_t wifi_event_group;
 extern TaskHandle_t kWifiTcpServerTaskhandle;
-// httpd_handle_t http_server = NULL;
+httpd_handle_t http_server = NULL;
 static esp_netif_t *sta_netif = NULL;
 static int ssid_index = 0;
 extern bool tcpserver_run;
@@ -102,7 +102,7 @@ static void ssid_change(void)
 }
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
-                             int32_t event_id, void* event_data)
+                            int32_t event_id, void* event_data)
 {
     if (event_base == WIFI_EVENT) {
         switch (event_id) {
@@ -112,7 +112,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
             case WIFI_EVENT_STA_CONNECTED:
                 break;
             case WIFI_EVENT_STA_DISCONNECTED:
-                // GPIO_SET_LEVEL_LOW(PIN_LED_WIFI_STATUS);
+                web_server_init(&http_server);
                 tcpserver_run = false;
                 if (kWifiTcpServerTaskhandle != NULL) {
                     xTaskNotifyGive(kWifiTcpServerTaskhandle);
@@ -131,7 +131,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
     } else if (event_base == IP_EVENT) {
         switch (event_id) {
             case IP_EVENT_STA_GOT_IP:
-                // GPIO_SET_LEVEL_HIGH(PIN_LED_WIFI_STATUS);
+                web_server_init(&http_server);
                 tcpserver_run = true;  // 允许TCP任务运行
                 if (kWifiTcpServerTaskhandle != NULL) {
                     xTaskNotifyGive(kWifiTcpServerTaskhandle);
@@ -143,13 +143,13 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                 ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
                 xEventGroupSetBits(wifi_event_group, IPV4_GOTIP_BIT);
                 break;
-#ifdef CONFIG_EXAMPLE_IPV6
-            case IP_EVENT_GOT_IP6:
-                ip_event_got_ip6_t* event6 = (ip_event_got_ip6_t*) event_data;
-                ESP_LOGI(TAG, "Got IPv6: " IPV6STR, IPV62STR(event6->ip6_info.ip));
-                xEventGroupSetBits(wifi_event_group, IPV6_GOTIP_BIT);
-                break;
-#endif
+            #ifdef CONFIG_EXAMPLE_IPV6
+                case IP_EVENT_GOT_IP6:
+                    ip_event_got_ip6_t* event6 = (ip_event_got_ip6_t*) event_data;
+                    ESP_LOGI(TAG, "Got IPv6: " IPV6STR, IPV62STR(event6->ip6_info.ip));
+                    xEventGroupSetBits(wifi_event_group, IPV6_GOTIP_BIT);
+                    break;
+            #endif
         }
     }
 }
@@ -166,15 +166,15 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 //     ESP_LOGI(TAG, "Connected to AP");
 // }
 
-static void disconnect_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
-{
-    web_server_stop((httpd_handle_t *)arg);
-}
+// static void disconnect_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+// {
+//     web_server_stop((httpd_handle_t *)arg);
+// }
 
-static void connect_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
-{
-    web_server_init((httpd_handle_t *)arg);
-}
+// static void connect_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+// {
+//     web_server_init((httpd_handle_t *)arg);
+// }
 
 void wifi_init(void)
 {

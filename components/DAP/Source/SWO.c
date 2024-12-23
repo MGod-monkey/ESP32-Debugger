@@ -1,16 +1,3 @@
-/**
- * @file SWO.c
- * @author windowsair
- * @brief SWO support
- * @change: 2021-02-17: Add basic functions
- * @version 0.2
- *
- * @date 2021-02-17
- *
- * @copyright Copyright (c) 2021
- *
- */
-
 /*
  * Copyright (c) 2013-2017 ARM Limited. All rights reserved.
  *

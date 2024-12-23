@@ -1,16 +1,3 @@
-/**
- * @file spi_switch.c
- * @author windowsair
- * @brief Switching between SPI mode and IO mode
- * @change: 2020-11-25 first version
- *          2021-2-11 Transmission mode switching test passed
- *          2022-9-15 Support ESP32C3
- * @version 0.4
- * @date 2021-9-15
- *
- * @copyright MIT License
- *
- */
 #include "sdkconfig.h"
 
 #include <stdbool.h>

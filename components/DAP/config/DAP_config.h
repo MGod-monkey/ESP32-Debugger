@@ -25,21 +25,6 @@
  *
  *---------------------------------------------------------------------------*/
 
-/**
- * @file DAP_config.h
- * @author windowsair
- * @brief Adaptation of GPIO and SPI pin
- * @change: 2021-2-10 Support GPIO and SPI
- *          2021-2-18 Try to support SWO
- *          2024-1-28 Update to CMSIS-DAP v2.1.0
- * @version 0.3
- * @date 2024-1-28
- *
- * @copyright Copyright (c) 2021-2024
- *
- */
-
-
 #ifndef __DAP_CONFIG_H__
 #define __DAP_CONFIG_H__
 
@@ -147,7 +132,7 @@ This information includes:
 /// Indicate that Manchester Serial Wire Output (SWO) trace is available.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
 #define SWO_MANCHESTER 0 ///< SWO Manchester:  1 = available, 0 = not available.
-// (windowsair)Do not modify. Not support.
+// Do not modify. Not support.
 
 
 /// SWO Trace Buffer Size.
@@ -185,8 +170,8 @@ This information includes:
 
 #define TARGET_DEVICE_VENDOR    ""                 ///< String indicating the Silicon Vendor
 #define TARGET_DEVICE_NAME      ""                 ///< String indicating the Target Device
-#define TARGET_BOARD_VENDOR     "windowsair"       ///< String indicating the Board Vendor
-#define TARGET_BOARD_NAME       "ESP wireless DAP" ///< String indicating the Board Name
+#define TARGET_BOARD_VENDOR     "MGodmonkey"       ///< String indicating the Board Vendor
+#define TARGET_BOARD_NAME       "ESP32 DAPLink" ///< String indicating the Board Name
 
 #if TARGET_FIXED != 0
 #include <string.h>
@@ -207,8 +192,8 @@ __STATIC_INLINE uint8_t DAP_GetVendorString(char *str)
   // In fact, Keil can get the corresponding information through USB
   // without filling in this information.
   // (void)str;
-  strcpy(str, "windowsair");
-  return (sizeof("windowsair"));
+  strcpy(str, "MGodmonkey");
+  return (sizeof("MGodmonkey"));
 }
 
 /**

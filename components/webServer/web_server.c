@@ -31,7 +31,7 @@ bool web_server_init(httpd_handle_t *server)
 
     if (*server || s_web_data.server)
     {
-        ESP_LOGE(TAG, "Server already started");
+        // ESP_LOGE(TAG, "Server already started");
         return false;
     }
 

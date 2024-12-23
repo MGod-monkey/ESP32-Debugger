@@ -2,8 +2,8 @@
  * @Author: wpqds666@163.com MGodmonkey
  * @Date: 2024-11-15 23:24:33
  * @LastEditors: wpqds666@163.com MGodmonkey
- * @LastEditTime: 2024-12-22 16:57:04
- * @FilePath: \ESP32-DAPLink-master\main\main.cpp
+ * @LastEditTime: 2024-12-23 16:01:21
+ * @FilePath: \ESP32-Debugger\main\main.cpp
  * @Description: 
  * 
  * Copyright (c) 2024 by MGodmonkey, All Rights Reserved.
@@ -137,25 +137,6 @@ static void mode_switch_task(void *pvParameters)
                         // 执行软复位
                         esp_restart();
                         
-                        // // 蓝灯闪烁两次表示模式切换
-                        // for (int i = 0; i < 2; i++) {
-                        //     // 蓝灯闪烁2次，每次延时200ms
-                        //     ws2812_blink(200, 2, 0, 0, 255);
-                        // }
-                        
-                        // // 切换模式
-                        // current_mode = !current_mode;
-                        
-                        // // 根据新模式执行初始化
-                        // if (current_mode == WIRELESS_MODE) {
-                        //     log_printf(TAG, LOG_INFO, "Switching to Wireless Mode");
-                        //     usb_service_control(false);
-                        //     wifi_service_control(true);
-                        // } else {
-                        //     log_printf(TAG, LOG_INFO, "Switching to Wired Mode");
-                        //     wifi_service_control(false);
-                        //     usb_service_control(true);
-                        // }
                     }
                 } else {  // 按键释放
                     button_state = BUTTON_IDLE;
@@ -196,17 +177,9 @@ extern "C" void app_main(void)
     {
         uart_init();
         wifi_init();
-        xTaskCreate(ws2812_task, "ws2812_task", 1024, NULL, 5, &ws2812_task_handle);
 
-        #if (SINGLE_MODE == 1)
-            #if (USE_TCP_NETCONN == 1)
-                xTaskCreate(tcp_netconn_task, "tcp_server", 4096, NULL, 14, NULL);
-            #else
-                xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 14, &kWifiTcpServerTaskhandle);
-            #endif
-        #else
-            xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 14, &kWifiTcpServerTaskhandle);
-        #endif
+        xTaskCreate(ws2812_task, "ws2812_task", 4096, NULL, 5, &ws2812_task_handle);
+        xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 14, &kWifiTcpServerTaskhandle);
     }
     else 
     {

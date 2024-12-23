@@ -1,18 +1,3 @@
-/**
- * @file spi_op.c
- * @author windowsair
- * @brief Using SPI for common transfer operations
- * @change: 2020-11-25 first version
- *          2021-2-11 Support SWD sequence
- *          2021-3-10 Support 3-wire SPI
- *          2022-9-15 Support ESP32C3
- *          2024-6-9  Fix DAP_SPI_WriteBits issue
- * @version 0.5
- * @date 2024-6-9
- *
- * @copyright MIT License
- *
- */
 #include "sdkconfig.h"
 
 #include <stdio.h>
