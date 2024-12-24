@@ -33,7 +33,7 @@ static cdc_uart_t s_cdc_uart = {0};
 static const char *TAG = "cdc_uart";
 static void cdc_uart_rx_task(void *param);
 
-bool cdc_uart_init(uart_port_t uart, gpio_num_t tx_pin, gpio_num_t rx_pin, int baudrate)
+bool cdc_uart_init(uart_port_t uart, gpio_num_t tx_pin, gpio_num_t rx_pin, int baudrate, bool create_task)
 {
     bool ret = false;
     uart_config_t uart_config = {
@@ -53,7 +53,7 @@ bool cdc_uart_init(uart_port_t uart, gpio_num_t tx_pin, gpio_num_t rx_pin, int b
     uart_queue = xQueueCreate(5, sizeof(uart_message_t));
     assert(uart_queue);
 
-    if (ret) {
+    if (ret && create_task) {
         xTaskCreate(cdc_uart_rx_task, "cdc_uart_rx_task", 4096, (void *)&s_cdc_uart, 10, NULL);
     }
 

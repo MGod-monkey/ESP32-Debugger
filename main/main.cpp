@@ -175,7 +175,7 @@ extern "C" void app_main(void)
     // 根据默认模式初始化
     if (current_mode == WIRELESS_MODE)
     {
-        uart_init();
+        cdc_uart_init(UART_PORT, GPIO_UART_TX, GPIO_UART_RX, 115200, false);
         wifi_init();
 
         xTaskCreate(ws2812_task, "ws2812_task", 4096, NULL, 5, &ws2812_task_handle);
@@ -188,7 +188,7 @@ extern "C" void app_main(void)
         tusb_cfg.string_descriptor_count = get_string_descriptor_count();
         tusb_cfg.device_descriptor = get_device_descriptor();
         // 初始化 CDC UART
-        cdc_uart_init(UART_PORT, GPIO_UART_TX, GPIO_UART_RX, 115200);
+        cdc_uart_init(UART_PORT, GPIO_UART_TX, GPIO_UART_RX, 115200, true);
         cdc_uart_register_rx_handler(CDC_UART_USB_HANDLER, usb_cdc_send_to_host, (void *)TINYUSB_CDC_ACM_0);
         bool mount_ret = msc_disk_mount(CONFIG_TINYUSB_MSC_MOUNT_PATH);
 
