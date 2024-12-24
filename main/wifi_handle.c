@@ -112,7 +112,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
             case WIFI_EVENT_STA_CONNECTED:
                 break;
             case WIFI_EVENT_STA_DISCONNECTED:
-                web_server_init(&http_server);
+                web_server_stop(&http_server);
                 tcpserver_run = false;
                 if (kWifiTcpServerTaskhandle != NULL) {
                     xTaskNotifyGive(kWifiTcpServerTaskhandle);
