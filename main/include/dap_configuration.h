@@ -33,10 +33,9 @@
 /// debugger and depends on the USB peripheral. Typical vales are 64 for Full-speed USB HID or WinUSB,
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
 #if (USE_WINUSB == 1)
-    // #define DAP_PACKET_SIZE 512U // 512 for WinUSB.
     #define DAP_PACKET_SIZE 64U // 64 for WinUSB.
 #else
-    #define DAP_PACKET_SIZE 255U // 255 for USB HID
+    // #define DAP_PACKET_SIZE 255U // 255 for USB HID
 #endif
 
 /**

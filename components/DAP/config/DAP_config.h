@@ -64,7 +64,7 @@ This information includes:
 //#endif
 
 /// Processor Clock of the Cortex-M MCU used in the Debug Unit.
-/// This value is used to calculate the SWD/JTAG clock speed.
+/// This value is uDAP_Commosed to calculate the SWD/JTAG clock speed.
 #define CPU_CLOCK 240000000
 
 
@@ -77,7 +77,7 @@ This information includes:
 /// require 2 processor cycles for a I/O Port Write operation.  If the Debug Unit uses
 /// a Cortex-M0+ processor with high-speed peripheral I/O only 1 processor cycle might be
 /// required.
-#define IO_PORT_WRITE_CYCLES 1U ///< I/O Cycles: 2=default, 1=Cortex-M0+ fast I/0.
+#define IO_PORT_WRITE_CYCLES 2U ///< I/O Cycles: 2=default, 1=Cortex-M0+ fast I/0.
 
 /// Indicate that Serial Wire Debug (SWD) communication mode is available at the Debug Access Port.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
@@ -104,7 +104,7 @@ This information includes:
 /// Default communication speed on the Debug Access Port for SWD and JTAG mode.
 /// Used to initialize the default SWD/JTAG clock frequency.
 /// The command \ref DAP_SWJ_Clock can be used to overwrite this default setting.
-#define DAP_DEFAULT_SWJ_CLOCK 4000000U ///< Default SWD/JTAG clock frequency in Hz.
+#define DAP_DEFAULT_SWJ_CLOCK 1000000U ///< Default SWD/JTAG clock frequency in Hz.
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<1MHz
 
 /// Maximum Package Buffers for Command and Response data.
@@ -142,7 +142,7 @@ This information includes:
 #define SWO_STREAM SWO_FUNCTION_ENABLE ///< SWO Streaming Trace: 1 = available, 0 = not available.
 
 /// Clock frequency of the Test Domain Timer. Timer value is returned with \ref TIMESTAMP_GET.
-#define TIMESTAMP_CLOCK 240000000U ///< Timestamp clock in Hz (0 = timestamps not supported).
+#define TIMESTAMP_CLOCK 5000000U ///< Timestamp clock in Hz (0 = timestamps not supported).
 // <<<<<<<<<<<<<<<<<<<<<5MHz
 
 /// Indicate that UART Communication Port is available.
@@ -160,7 +160,7 @@ This information includes:
 
 /// Indicate that UART Communication via USB COM Port is available.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
-#define DAP_UART_USB_COM_PORT   0               ///< USB COM Port:  1 = available, 0 = not available.
+#define DAP_UART_USB_COM_PORT   1               ///< USB COM Port:  1 = available, 0 = not available.
 
 /// Debug Unit is connected to fixed Target Device.
 /// The Debug Unit may be part of an evaluation board and always connected to a fixed
@@ -322,7 +322,7 @@ __STATIC_INLINE uint8_t DAP_GetProductFirmwareVersionString (char *str) {
 #define PIN_nRESET			  GPIO_DAP_JTAG_nRESET
 
 #define PIN_LED_CONNECTED _ // won't be used
-#define PIN_LED_RUNNING _ // won't be used
+#define PIN_LED_RUNNING GPIO_LED_RUNNING_STATUS // won't be used
 
 
 //**************************************************************************************************
@@ -525,6 +525,7 @@ __STATIC_FORCEINLINE void PIN_SWDIO_OUT(uint32_t bit)
     GPIO_SET_LEVEL_LOW(PIN_SWDIO_MOSI);
 
   }
+  asm volatile ("nop");
 }
 
 /**
@@ -550,24 +551,9 @@ __STATIC_FORCEINLINE void PIN_SWDIO_OUT_DISABLE(void)
 {
   // may be unuse.
   // set \ref gpio_set_dircetion -> INPUT
-  // esp8266 input is always connected
-  // GPIO.enable_w1tc |= (0x1 << PIN_SWDIO_MOSI);
-  // GPIO.pin[PIN_SWDIO_MOSI].driver = 0;
-#ifdef CONFIG_IDF_TARGET_ESP8266
-  GPIO.out_w1ts |= (0x1 << PIN_SWDIO_MOSI);
-#elif defined CONFIG_IDF_TARGET_ESP32
-  // Note that the input of esp32 is not always connected.
-  PIN_INPUT_ENABLE(GPIO_PIN_MUX_REG[PIN_SWDIO_MOSI]);
-  GPIO.out_w1ts = (0x1 << PIN_SWDIO_MOSI);
-#elif defined CONFIG_IDF_TARGET_ESP32C3
-  // Note that the input of esp32c3 is not always connected.
-  PIN_INPUT_ENABLE(GPIO_PIN_MUX_REG[PIN_SWDIO_MOSI]);
-  GPIO.out_w1ts.out_w1ts = (0x1 << PIN_SWDIO_MOSI);
-#elif defined CONFIG_IDF_TARGET_ESP32S3
   // Note that the input is not always connected.
   gpio_ll_input_enable(&GPIO, PIN_SWDIO_MOSI);
   gpio_ll_set_level(&GPIO, PIN_SWDIO_MOSI, 1);
-#endif
 }
 
 // TDI Pin I/O ---------------------------------------------
@@ -719,17 +705,17 @@ __STATIC_INLINE void LED_CONNECTED_OUT(uint32_t bit)
  */
 __STATIC_INLINE void LED_RUNNING_OUT(uint32_t bit)
 {
-  (void)(bit);
-  // if (bit)
-  // {
-  //   //set bit
-  //   GPIO.out_w1ts |= (0x1 << PIN_LED_RUNNING);
-  // }
-  // else
-  // {
-  //   //reset bit
-  //   GPIO.out_w1tc |= (0x1 << PIN_LED_RUNNING);
-  // }
+  // (void)(bit);
+  if (bit)
+  {
+    //set bit
+    GPIO.out_w1ts |= (0x1 << PIN_LED_RUNNING);
+  }
+  else
+  {
+    //reset bit
+    GPIO.out_w1tc |= (0x1 << PIN_LED_RUNNING);
+  }
 }
 
 ///@}
@@ -783,15 +769,15 @@ __STATIC_INLINE void DAP_SETUP(void)
   GPIO_FUNCTION_SET(PIN_nTRST);
   GPIO_FUNCTION_SET(PIN_nRESET);
 
-  // GPIO_FUNCTION_SET(PIN_LED_RUNNING);
+  GPIO_FUNCTION_SET(PIN_LED_RUNNING);
 
 
   // Configure: LED as output (turned off)
 
-  // GPIO_SET_DIRECTION_NORMAL_OUT(PIN_LED_RUNNING);
+  GPIO_SET_DIRECTION_NORMAL_OUT(PIN_LED_RUNNING);
 
   // LED_CONNECTED_OUT(0);
-  // LED_RUNNING_OUT(0);
+  LED_RUNNING_OUT(0);
 
   PORT_OFF();
 }

@@ -243,11 +243,21 @@ static const char *TAG = "tcp_server";
 
             // 数据接收循环
             while (1) {
+                fd_set readfds;
+                struct timeval tv = {
+                    .tv_sec = 0,
+                    .tv_usec = 1000  // 1ms超时
+                };
+
+                FD_ZERO(&readfds);
+                FD_SET(sock, &readfds);
+
+                int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
+
+                if (activity > 0 && FD_ISSET(sock, &readfds)) {
                 uint8_t rx_byte;
                 int len = recv(sock, &rx_byte, 1, 0);  // 单字节读取
-                
                 if (len > 0) {
-                    // 处理接收到的数据
                     Res = rx_byte;
                     if (((USART_RX_STA & 0x8000) || (USART2_RX_STA & 0x8000) || (USART3_RX_STA & 0x8000)) == 0)
                     {
@@ -394,32 +404,24 @@ static const char *TAG = "tcp_server";
                 else if (len == 0) {
                     log_printf(TAG, LOG_INFO, "Connection closed");
                 }
+                }
 
                 // 检查串口数据
                 size_t uart_len;
                 ESP_ERROR_CHECK(uart_get_buffered_data_len(UART_PORT, &uart_len));
                 if (uart_len > 0) {
-                    // 分配缓冲区
                     uint8_t* uart_data = (uint8_t*)malloc(uart_len);
-                    uint8_t* send_buf = (uint8_t*)malloc(uart_len + 2); // +2 用于头部信息
+                    uint8_t* send_buf = (uint8_t*)malloc(uart_len + 2);
                     
                     if (uart_data && send_buf) {
-                        // 读取UART数据
                         int read_len = uart_read_bytes(UART_PORT, uart_data, uart_len, pdMS_TO_TICKS(20));
-                        
                         if (read_len > 0) {
-                            // 构建发送数据包
-                            send_buf[0] = 0x67;          // 协议头
-                            send_buf[1] = read_len;      // 数据长度
-                            memcpy(send_buf + 2, uart_data, read_len); // 数据内容
+                            send_buf[0] = 0x67;
+                            send_buf[1] = read_len;
+                            memcpy(send_buf + 2, uart_data, read_len);
                             
-                            // 发送数据
-                            vTaskDelay(pdMS_TO_TICKS(3));  // 延时3ms
                             send(sock, send_buf, read_len + 2, 0);
-                            vTaskDelay(pdMS_TO_TICKS(3));  // 延时3ms
                         }
-                        
-                        // 释放内存
                         free(uart_data);
                         free(send_buf);
                     }

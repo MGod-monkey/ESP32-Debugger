@@ -7,6 +7,7 @@
 #include "esp_err.h"
 
 extern TaskHandle_t ws2812_task_handle;
+extern bool tcpserver_run;
 
 // LED strip common configuration
 led_strip_config_t strip_config = {
@@ -118,47 +119,67 @@ void ws2812_task(void *pvParameters) {
             return;
         }
 
-        wifi_ap_record_t ap_info;
-        esp_err_t status = esp_wifi_sta_get_ap_info(&ap_info);
-        if (status == ESP_OK) {
-            int8_t rssi = ap_info.rssi;
-            // printf("rssi: %d", rssi);
-            if (rssi > -50) {
-                led_strip_set_pixel(led_strip, 0, 0, 255, 0);
-                led_strip_refresh(led_strip);
+        // 等待通知
+        ws2812_set_color(LED_COLOR_RED);
+        
+        while (tcpserver_run) {
+            // 检查WiFi连接
+            wifi_ap_record_t ap_info;
+            esp_err_t status = esp_wifi_sta_get_ap_info(&ap_info);
+            if (status != ESP_OK) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                continue;
+            } 
+
+            if (status == ESP_ERR_WIFI_NOT_CONNECT) {
+                // WiFi未连接，无需打印警告
+                ws2812_set_color(LED_COLOR_RED);
                 vTaskDelay(pdMS_TO_TICKS(500));
                 continue;
-            } else if (rssi < -50 && rssi > -70) {
-                ws2812_breath(LED_COLOR_GREEN, 2000);  // 信号较好，慢速呼吸绿色
-            } else if (rssi > -80) {
-                ws2812_breath(LED_COLOR_GREEN, 1000);  // 信号一般，中速呼吸绿色
-            } else {
-                ws2812_breath(LED_COLOR_RED, 500);    // 信号差，快速呼吸红色
             }
 
-            // if (rssi > -50) {
-            //     // 信号强度非常好，LED常亮绿色
-            //     led_strip_set_pixel(led_strip, 0, 0, 255, 0);
-            //     led_strip_refresh(led_strip);
-            //     vTaskDelay(pdMS_TO_TICKS(delay_time));
-            //     continue;
-            // } else if (rssi > -60) {
-            //     // 信号强度好，LED慢闪绿色
-            //     delay_time = 1000;
-            // } else if (rssi > -70) {
-            //     // 信号强度一般，LED中速闪烁绿色
-            //     delay_time = 500;
-            // } else if (rssi > -80) {
-            //     // 信号强度差，LED快速闪烁绿色
-            //     delay_time = 250;
-            // } else {
-            //     // 信号非常差，LED非常快速闪烁绿色
-            //     delay_time = 100;
-            // }
-        }
-        else {
-            // 未连接WiFi，LED常亮红色
-            ws2812_set_color(LED_COLOR_RED);
+            if (status == ESP_OK) {
+                int8_t rssi = ap_info.rssi;
+                // printf("rssi: %d", rssi);
+                if (rssi > -70) {
+                    ws2812_set_color(LED_COLOR_GREEN);
+                    vTaskDelay(pdMS_TO_TICKS(1000));
+                    continue;
+                }
+                // else if (rssi < -50 && rssi > -70) {
+                //     ws2812_breath(LED_COLOR_GREEN, 2000);  // 信号较好，慢速呼吸绿色
+                // } 
+                else if (rssi < -70 && rssi > -80) {
+                    ws2812_breath(LED_COLOR_GREEN, 1000);  // 信号一般，中速呼吸绿色
+                } else {
+                    ws2812_breath(LED_COLOR_RED, 500);    // 信号差，快速呼吸红色
+                }
+
+                // if (rssi > -50) {
+                //     // 信号强度非常好，LED常亮绿色
+                //     led_strip_set_pixel(led_strip, 0, 0, 255, 0);
+                //     led_strip_refresh(led_strip);
+                //     vTaskDelay(pdMS_TO_TICKS(delay_time));
+                //     continue;
+                // } else if (rssi > -60) {
+                //     // 信号强度好，LED慢闪绿色
+                //     delay_time = 1000;
+                // } else if (rssi > -70) {
+                //     // 信号强度一般，LED中速闪烁绿色
+                //     delay_time = 500;
+                // } else if (rssi > -80) {
+                //     // 信号强度差，LED快速闪烁绿色
+                //     delay_time = 250;
+                // } else {
+                //     // 信号非常差，LED非常快速闪烁绿色
+                //     delay_time = 100;
+                // }
+            }
+            else {
+                // 未连接WiFi，LED常亮红色
+                ws2812_set_color(LED_COLOR_RED);
+            }
+            vTaskDelay(pdMS_TO_TICKS(500));
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
