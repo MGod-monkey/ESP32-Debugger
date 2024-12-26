@@ -35,7 +35,7 @@
 #if (USE_WINUSB == 1)
     #define DAP_PACKET_SIZE 64U // 64 for WinUSB.
 #else
-    // #define DAP_PACKET_SIZE 255U // 255 for USB HID
+    #define DAP_PACKET_SIZE 255U // 255 for USB HID
 #endif
 
 /**
@@ -50,7 +50,7 @@
  *     无线串口模式：PC->发送端->tcp->接收端->串口
  */
 
-#define SINGLE_MODE 0
+#define SINGLE_MODE 1
 
 /**
  * @brief 启动时默认的调试模式

@@ -42,7 +42,7 @@ extern const uint8_t favicon_ico_end[] asm("_binary_favicon_ico_end");
 web_resource_map_t s_resource_map[WEB_RESOURCE_NUM] = {
     {"/data/httpd/root.html", root_html_start, root_html_end},
     {"/data/httpd/favicon.ico", favicon_ico_start, favicon_ico_end},
-    {"/data/httpd/program.html", program_html_start, program_html_end},
+    // {"/data/httpd/program.html", program_html_start, program_html_end},
     {"/data/httpd/webserial.html", webserial_html_start, webserial_html_end}};
 
 void web_send_to_clients(void *context, uint8_t *data, size_t size)
