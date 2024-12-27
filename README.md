@@ -1,3 +1,7 @@
+> 代码基于ESP-IDF v5.x开发，Keil工程基于MDK-ARM v5.29开发，其他版本未测试
+> 本项目基于MIT协议开源，欢迎大家使用和转载，转载请注明出处
+
+
 ## 项目简介
 
 1. 接收机基于立创ESP32S3R8N8开发板制作，可独立运行，也可搭配发送机运行，接收机可以搭配发送机实现即插即用，无需上位机和WIFI，即可远程调试和开发
@@ -11,19 +15,19 @@
 ## 实物展示
 | 实物正面图                                                   | 实物背面图                                                   |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| ![image.png](//image.lceda.cn/oshwhub/23eec65737b04035a22ce59e413d4e35.png) | ![image.png](//image.lceda.cn/oshwhub/1c5177f235e64bbb85e17d9ffd822018.png) |
+| ![image.png](https://s2.loli.net/2024/12/26/wzZGtRl8cUykuiV.png) | ![image.png](https://s2.loli.net/2024/12/26/nH9Kz3bPpoE5j1t.png) |
 
 
-![image.png](//image.lceda.cn/oshwhub/d6cbd0a665a8490aa1ea96a615d865ed.png)
+![image.png](https://s2.loli.net/2024/12/28/LgR4Dh1bEVaHliz.png)
 
-![image.png](//image.lceda.cn/oshwhub/71ebc79606384779a0456ca78a9ce50e.png)
+![image.png](https://s2.loli.net/2024/12/28/4RIGVT9Yo8E71xQ.png)
 
 ## 原理解析（硬件说明）
-![image.png](//image.lceda.cn/oshwhub/a41efce056da42c7bac39c2de0ca15bc.png)
+![image.png](https://s2.loli.net/2024/12/28/koZUXGyHmlCquiY.png)
 
 ​	本项目的发送端硬件由**CH554G单片机**和**ESP12F无线模块**组成。CH554G 是一款兼容 MCS51 指令集并支持 USB 2.0 的高性能单片机，主要负责与PC端进行USB 通信。通过USB连接PC，生成 **CMSIS DAP调试设备**和**CDC 虚拟串口设备**，提供调试和串口通信功能。同时，CH554G通过UART与ESP12F无线模块连接。ESP12F 负责**创建无线热点（AP）**并**搭建 TCP 服务器**，等待接收端设备连接，从而实现数据的**无线透传**功能，**CHECK信号线**用于判断是否与**接收机建立连接**。**SY6280AAC**用于**防止意外过压**或**过流**导致的电路损坏，保障系统的安全性和稳定性，限流大小为**I(A)=6800/R2=1A**。
 
-![image.png](//image.lceda.cn/oshwhub/f252d0f7d704405f9a3006186ccc4d65.png)
+![image.png](https://s2.loli.net/2024/12/28/4kfuOjyUmSr59M6.png)
 
 ​	接收端硬件主要由立创**ESP32S3R8N8 开发板**构成，通过移植 **DAPLink** 代码实现 **CMSIS-DAP** 功能，用于支持 **SWD** 和 **JTAG** 协议的调试功能。在有线调试模式下，基于**TinyUSB框架**实现USB通信功能，其中 **CMSIS-DAP** 设备和 **CDC 虚拟串口**设备通过TinyUSB的**HID**和**CDC**模块完成初始化和数据传输，支持在PC端的 Keil 环境中进行调试和串口通信。
 ​	同时，接收机还实现了无线调试功能，利用 ESP32S3内置的**Wi-Fi模块**，连接到发送端创建的AP热点，并与**TCP服务器**建立连接，实现**无线数据传输**，从而支持无线下载调试和串口透传。
@@ -33,19 +37,19 @@
 ### 发送机烧录
 ​	1.发送端需要烧录ESP12F和CH554G的固件，CH554G需要使用`WCHISPTool_Setup`烧录工具进行烧录，如果是全新的CH554G，默认插上电脑的USB，上电就会进入Boot模式，此时可以通过工具进行识别和烧录，如果是已经烧录过的CH554G则需要短接U2旁边的触点，然后插上电脑上电，才能通过工具进行烧录，烧录固件为`firmware/ch554.hex`
 
-![image.png](//image.lceda.cn/oshwhub/aef66dd19c12471eb1a3330e53d20c63.png)
+![image.png](https://s2.loli.net/2024/12/28/yT97SnLgr5a3QFd.png)
 
-![ch554烧录.png](//image.lceda.cn/oshwhub/a7a4096cce4b4425a3008bc5134f4f4a.png)
+![ch554烧录.png](https://s2.loli.net/2024/12/28/gyjr7MlznAbqHk1.png)
 
 ​	ESP12F烧录通过引出来的串口接口进行烧录，需要用一个USB转TTL下载工具，使用乐鑫官方下载工具flash_download_tool进行烧录，长按BOOT按钮，然后短按RST按钮，松开BOOT按钮即可进入ESP12F的下载模式
 
-![image.png](//image.lceda.cn/oshwhub/1139f03db3f4419da49d39d64a24b587.png)
+![image.png](https://s2.loli.net/2024/12/28/vukFdoOS3bI45ap.png)
 
 ​	`flash_download_tool`选择ESP8266, 然后选择固件`firmware/ESP12F.ion.bin`进行烧录，如果点击开始后没反应，先判断一下串口是否连接对了，再判断一下ESP12F是否进入的下载模式
 
-![image.png](//image.lceda.cn/oshwhub/e34f7b8e3eb7403499066eebf29bde68.png)
+![image.png](https://s2.loli.net/2024/12/28/R4Vw2f57mdxn8Sz.png)
 
-![image.png](//image.lceda.cn/oshwhub/70b20ec877b849dd8a5686663987812c.png)
+![image.png](https://s2.loli.net/2024/12/28/UckjDYhKpI7V5aN.png)
 
 ​	烧录完成后，重新接入电脑，发送机就可以正常使用了，此时ESP12F会生成一个AP热点，热点名称：`MGodmonkey`,密码：`1234567890`（后续会考虑给ESP12F添加OTA更新的功能，让其烧录一次代码就能无限远程更新）
 
@@ -53,9 +57,9 @@
 ​	接收机的固件有两种，一个是搭配USBIP技术栈独立使用的单机模式固件，一个是搭配发送机使用的双机模式固件，两种固件下载方式都是一样的。
 `flash_download_tool`选择ESP32S3, LoadMode选择UART,ESP32S3立创开发板连接电脑后会生成两个串口，一个是USB-OTG的USB串行设备，一个是连接CH340K的串口设备，选择第二个串口进行烧录即可
 
-![image.png](//image.lceda.cn/oshwhub/5ce15e3a21ab4a85b44a2d98c1c8d307.png)
+![image.png](https://s2.loli.net/2024/12/28/McdFfE2PTIDJiw6.png)
 
-![image.png](//image.lceda.cn/oshwhub/733644ed4fae4bada1844f29783f8967.png)
+![image.png](https://s2.loli.net/2024/12/28/EiWpcG6F7N91g5U.png)
 
 ​	`flash_download_tool`的分区设置要严格按照图中的进行设置，否则可能会出错，烧录的固件在`firmware/Single_Mode`或`firmware/Double_Mode`中
 
@@ -66,7 +70,7 @@
 | partition-table.bin  | 0x8000  |
 | ota_data_initial.bin | 0xf000  |
 
-![image.png](//image.lceda.cn/oshwhub/00c666c9831b4e6ebec64f9bca81e07e.png)
+![image.png](https://s2.loli.net/2024/12/28/ihU3aqr2VmMSzYP.png)
 
 ## 外壳说明
 发送机的外壳可以在淘宝上买到公版的电流计亚克力外壳来使用：
@@ -163,7 +167,7 @@ UART接线：
 
 无线串口传输跟有线串口传输功能是一样的，不过接收机内置了一个Web服务，可以通过访问ESP32S3的IP地址来使用**WebSerial**功能，在网页上发送数据到接收机的串口中
 
-![image.png](//image.lceda.cn/oshwhub/2a9e50d867be4b28908b0e5f6890810e.png)
+![image.png](https://s2.loli.net/2024/12/28/OTc4wLfKuZHihW1.png)
 
 ### 搭配发送机使用
 
