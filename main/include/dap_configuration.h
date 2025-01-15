@@ -39,6 +39,22 @@
 #endif
 
 /**
+ * @brief Enable this option to force a software reset when resetting the device
+ *
+ * Some debugger software (e.g. Keil) does not perform a software reset when
+ * resetting the target. When this option enabled, a soft reset is attempted
+ * when DAP_ResetTarget() is performed. This is done by writing to the
+ * SYSRESETREQ field of the AIRCR register in the Cortex-M architecture.
+ *
+ * This should work for ARMv6-m, ARMv7-m and ARMv8-m architecture. However,
+ * there is no guarantee that the reset operation will be executed correctly.
+ *
+ * Only available for SWD.
+ *
+ */
+#define USE_FORCE_SYSRESETREQ_AFTER_FLASH 1
+
+/**
  * @brief 接收端模式
  * SINGLE_MODE=1: 单接收端模式     
  *      有线模式：PC->数据线->接收端->SWD/JTAG

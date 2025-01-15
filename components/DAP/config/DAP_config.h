@@ -415,8 +415,6 @@ __STATIC_INLINE void PORT_SWD_SETUP(void)
 __STATIC_INLINE void PORT_OFF(void)
 {
   // Will be called when the DAP disconnected
-  DAP_SPI_Disable();
-
   gpio_ll_output_enable(&GPIO, PIN_nRESET);
   gpio_ll_od_enable(&GPIO, PIN_nRESET);
   GPIO_PULL_UP_ONLY_SET(PIN_nRESET);

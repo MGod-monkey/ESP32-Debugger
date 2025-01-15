@@ -412,6 +412,30 @@ static uint32_t DAP_SWJ_Pins(const uint8_t *request, uint8_t *response) {
 
 extern uint8_t SWD_TransferSpeed;
 
+// Common clock delay calculation routine
+//   clock:    requested SWJ frequency in Hertz
+//   return:   void
+static void Set_DAP_Clock_Delay(uint32_t clock) {
+  uint32_t delay;
+
+  if (clock >= MAX_SWJ_CLOCK(DELAY_FAST_CYCLES)) {
+    DAP_Data.fast_clock  = 1U;
+    DAP_Data.clock_delay = 1U;
+  } else {
+    DAP_Data.fast_clock  = 0U;
+
+    delay = ((CPU_CLOCK/2U) + (clock - 1U)) / clock;
+    if (delay > IO_PORT_WRITE_CYCLES) {
+      delay -= IO_PORT_WRITE_CYCLES;
+      delay  = (delay + (DELAY_SLOW_CYCLES - 1U)) / DELAY_SLOW_CYCLES;
+    } else {
+      delay  = 1U;
+    }
+
+    DAP_Data.clock_delay = delay;
+  }
+}
+
 // Process SWJ Clock command and prepare response
 //   request:  pointer to request data
 //   response: pointer to response data
@@ -433,42 +457,47 @@ static uint32_t DAP_SWJ_Clock(const uint8_t *request, uint8_t *response) {
   }
 
   // Note that the maximum IO frequency of esp8266 is less than 2MHz
+  if(DAP_Data.debug_port == DAP_PORT_JTAG){
+    // clock >= 10MHz -> use 40MHz SPI
+    if (clock >= 10000000) {
+      if (DAP_Data.debug_port != DAP_PORT_JTAG) {
+        DAP_SPI_Init();
+        SWD_TransferSpeed = kTransfer_SPI;
+      } else {
+        SWD_TransferSpeed = kTransfer_GPIO_fast;
+      }
+      DAP_Data.fast_clock  = 1U;
+      DAP_Data.clock_delay = 1U;
 
-  // clock >= 10MHz -> use 40MHz SPI
-  if (clock >= 10000000) {
-    if (DAP_Data.debug_port != DAP_PORT_JTAG) {
-      DAP_SPI_Init();
-      SWD_TransferSpeed = kTransfer_SPI;
-    } else {
+    } else if (clock >= 2000000) {
+      // clock >= 2MHz -> Use GPIO with no program delay
+      DAP_SPI_Deinit();
+      DAP_Data.fast_clock  = 1U;
+      DAP_Data.clock_delay = 1U;
       SWD_TransferSpeed = kTransfer_GPIO_fast;
-    }
-    DAP_Data.fast_clock  = 1U;
-    DAP_Data.clock_delay = 1U;
-
-  } else if (clock >= 2000000) {
-    // clock >= 2MHz -> Use GPIO with no program delay
-    DAP_SPI_Deinit();
-    DAP_Data.fast_clock  = 1U;
-    DAP_Data.clock_delay = 1U;
-    SWD_TransferSpeed = kTransfer_GPIO_fast;
-  } else {
-    // clock < 2MHz -> Use GPIO with delay
-    DAP_SPI_Deinit();
-    DAP_Data.fast_clock  = 0U;
-    SWD_TransferSpeed = kTransfer_GPIO_normal;
-
-
-  #define BUS_CLOCK_FIXED 100000000
-
-    delay = ((BUS_CLOCK_FIXED/2U) + (clock - 1U)) / clock;
-    if (delay > IO_PORT_WRITE_CYCLES) {
-      delay -= IO_PORT_WRITE_CYCLES;
-      delay  = (delay + (DELAY_SLOW_CYCLES - 1U)) / DELAY_SLOW_CYCLES;
     } else {
-      delay  = 1U;
-    }
+      // clock < 2MHz -> Use GPIO with delay
+      DAP_SPI_Deinit();
+      DAP_Data.fast_clock  = 0U;
+      SWD_TransferSpeed = kTransfer_GPIO_normal;
 
-    DAP_Data.clock_delay = delay;
+
+    #define BUS_CLOCK_FIXED 100000000
+
+      delay = ((BUS_CLOCK_FIXED/2U) + (clock - 1U)) / clock;
+      if (delay > IO_PORT_WRITE_CYCLES) {
+        delay -= IO_PORT_WRITE_CYCLES;
+        delay  = (delay + (DELAY_SLOW_CYCLES - 1U)) / DELAY_SLOW_CYCLES;
+      } else {
+        delay  = 1U;
+      }
+
+      DAP_Data.clock_delay = delay;
+    }
+  }else{
+    DAP_SPI_Init();
+    SWD_TransferSpeed = kTransfer_SPI;
+    Set_DAP_Clock_Delay(clock);
   }
 
   *response = DAP_OK;
@@ -1683,17 +1712,6 @@ __WEAK uint32_t DAP_ProcessVendorCommand(const uint8_t *request, uint8_t *respon
   return ((1U << 16) | 1U);
 }
 
-// Process DAP Vendor extended command request and prepare response
-// Default function (can be overridden)
-//   request:  pointer to request data
-//   response: pointer to response data
-//   return:   number of bytes in response (lower 16 bits)
-//             number of bytes in request (upper 16 bits)
-__WEAK uint32_t DAP_ProcessVendorCommandEx(const uint8_t *request, uint8_t *response) {
-  *response = ID_DAP_Invalid;
-  return ((1U << 16) | 1U);
-}
-
 // Process DAP command request and prepare response
 //   request:  pointer to request data
 //   response: pointer to response data
@@ -1706,7 +1724,7 @@ uint32_t DAP_ProcessCommand(const uint8_t *request, uint8_t *response) {
     return DAP_ProcessVendorCommand(request, response);
   }
   if ((*request >= ID_DAP_VendorExFirst) && (*request <= ID_DAP_VendorExLast)) {
-    return DAP_ProcessVendorCommandEx(request, response);
+    return DAP_ProcessVendorCommand(request, response);
   }
 
   *response++ = *request;
