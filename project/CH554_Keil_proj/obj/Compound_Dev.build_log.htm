@@ -1,0 +1,45 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Tool Versions:</h2>
+IDE-Version: ¦ÌVision V5.39.0.0
+Copyright (C) 2023 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: x x, x, LIC=2T28G-VS9EB-K4RSM-XT5HS-FH8E6-K88QY
+ 
+Tool Versions:
+Toolchain:       MDK51 Professional  Version: 9.59.0.0
+Toolchain Path:  E:\Keil_v5_mdk\C51\BIN
+C Compiler:      C51.exe V9.59.0.0
+Assembler:       A51.exe V8.2.7.0
+Linker/Locator:  BL51.exe V6.22.2.0
+Library Manager: LIB51.exe V4.30.1.0
+Hex Converter:   OH51.exe V2.7.0.0
+CPU DLL:         S8051.DLL V3.122.0.0
+Dialog DLL:      DP51.DLL V2.66.0.0 
+<h2>Project:</h2>
+C:\Users\17814\Desktop\ESP32-DAPLink\ESP32-Debugger\project\CH554_Keil_proj\Compound_Dev.uvproj
+Project File Date:  01/17/2025
+
+<h2>Output:</h2>
+Rebuild target 'Target 1'
+compiling Compound.C...
+compiling main.c...
+compiling DEBUG.C...
+compiling GPIO.C...
+linking...
+*** WARNING L15: MULTIPLE CALL TO SEGMENT
+    SEGMENT: ?PR?PRINTF?PRINTF
+    CALLER1: ?PR?DEVICEINTERRUPT?COMPOUND
+    CALLER2: ?PR?GPIOINTERRUPT?GPIO
+*** WARNING L15: MULTIPLE CALL TO SEGMENT
+    SEGMENT: ?PR?PRINTF?PRINTF
+    CALLER1: ?PR?GPIOINTERRUPT?GPIO
+    CALLER2: ?C_C51STARTUP
+Program Size: data=60.3 xdata=765 code=7999
+creating hex file from ".\obj\Compound_Dev"...
+".\obj\Compound_Dev" - 0 Error(s), 2 Warning(s).
+Build Time Elapsed:  00:00:01
+</pre>
+</body>
+</html>

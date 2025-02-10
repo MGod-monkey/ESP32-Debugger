@@ -1,0 +1,408 @@
+C51 COMPILER V9.59.0.0   MAIN                                                              01/17/2025 11:12:02 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\obj\main.obj
+COMPILER INVOKED BY: E:\Keil_v5_mdk\C51\BIN\C51.EXE main.c LARGE OPTIMIZE(0,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\lis
+                    -t\main.lst) TABS(2) OBJECT(.\obj\main.obj)
+
+line level    source
+
+   1          /********************************** (C) COPYRIGHT ******************************
+   2          * File Name          :Compound_Dev.C                      
+   3          * Author             : WCH                                                      
+   4          * Version            : V1.0                                                     
+   5          * Date               : 2017/03/15                                               
+   6          * Description        : A demo for USB compound device created by CH554, support 
+   7                       keyboard and mouse, and HID compatible device.           
+   8          ********************************************************************************/
+   9          #include ".\Public\CH554.H"
+  10          #include "Compound.h"
+  11          #include ".\Public\debug.h"
+  12          #include <stdio.h>
+  13          #include <string.h>
+  14          #include ".\Public\GPIO.H"
+  15          sbit check = P1^4;
+  16          UINT8 flag1_1 = 1;
+  17          
+  18          
+  19          extern UINT8  FLAG;                         // Trans complete flag
+  20          extern UINT8  EnumOK;                       // Enum ok flag 
+  21          
+  22          UINT8 Res;  
+  23          UINT8 D1_len=0,D2_len=0;
+  24          UINT8 Flag_3=0,Flag_4=0;
+  25          UINT8X USART_RX_BUF[66];     //?����??o3?,��?�䨮USART_REC_LEN??��??��.
+  26          UINT8X USART3_RX_BUF[140];     //?����??o3?,��?�䨮USART_REC_LEN??��??�.
+  27          //?����?���䨬?
+  28          //bit15��?  ?����?����3������??
+  29          //bit14��?  ?����?��?0x0d
+  30          //bit13~0��?  ?����?��?��?��DD���??����y??
+  31          UINT16 USART_RX_STA=0;       //?����?���䨬?����??    
+  32          UINT16 USART3_RX_STA=0;       //?����?���䨬?����?? 
+  33          UINT16 num_1 =0,num_2=0;          
+  34          
+  35          void DAP_Thread(void)
+  36          {
+  37   1          UINT8I num;
+  38   1      
+  39   1          if (USB_RequestFlag)
+  40   1          {
+  41   2          CH554UART0SendByte(0x66);
+  42   2          num_2 = 0;
+  43   2          num_1= 63;
+  44   2          while(1)
+  45   2          {
+  46   3            num_2 += Ep3Buffer[num_1];
+  47   3            if(num_2)break;
+  48   3            num_1--;
+  49   3          }
+  50   2          CH554UART0SendByte(num_1+1);
+  51   2          for(num=0;num<num_1+1;num++)
+  52   2          { 
+  53   3            CH554UART0SendByte(Ep3Buffer[num]);
+  54   3          }
+C51 COMPILER V9.59.0.0   MAIN                                                              01/17/2025 11:12:02 PAGE 2   
+
+  55   2          while((USART_RX_STA&0x8000)==0);    
+  56   2          USART_RX_STA = 0; 
+  57   2          for(num=0;num<64;num++)
+  58   2          {
+  59   3            Ep3Buffer2[num] = USART_RX_BUF[num];//???1????
+  60   3          }
+  61   2          UEP3_CTRL = UEP3_CTRL & ~ MASK_UEP_R_RES | UEP_R_RES_ACK; //enable receive
+  62   2            UEP3_T_LEN = 64;
+  63   2            UEP3_CTRL = UEP3_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK; //enable send
+  64   2          USB_RequestFlag = 0;
+  65   2          }
+  66   1      }
+  67          
+  68          void main( void )
+  69          {
+  70   1        UINT8I num=0,lenth=0;
+  71   1        UINT16X timeout;  // 使用CH554的XDATA存储类型
+  72   1        
+  73   1        CfgFsys();//时钟选择配置
+  74   1        mDelaymS(5);//修改频率等待内部晶振稳定,关键
+  75   1        Port1Cfg(3,4);                                                             //P16推挽输出模式
+  76   1        
+  77   1        // 初始化调试串口
+  78   1        mInitSTDIO();
+  79   1        printf("System Init Start\n");
+  80   1        
+  81   1        USBDeviceInit();//初始化USB设备
+  82   1        printf("USB Device Init Done\n");
+  83   1        
+  84   1        EA = 1; 
+  85   1        UEP1_T_LEN = 0;
+  86   1        UEP2_T_LEN = 0;
+  87   1        UEP3_T_LEN = 0;
+  88   1        Endp2Busy = 0;
+  89   1        
+  90   1        while(flag1_1)
+  91   1        {
+  92   2          if(check == 0)
+  93   2          {
+  94   3            flag1_1=0;
+  95   3          }
+  96   2          mDelaymS(100);  
+  97   2        }
+  98   1        
+  99   1        for(num=0;num<64;num++)
+ 100   1        {
+ 101   2          USART_RX_BUF[num]= 0;
+ 102   2        }
+ 103   1        
+ 104   1        timeout = 0;
+ 105   1        while(!UsbConfig && timeout < 1000) { // 等待USB枚举完成
+ 106   2          mDelaymS(1);
+ 107   2          timeout++;
+ 108   2          if(timeout % 100 == 0)
+ 109   2          {
+ 110   3            printf("Waiting for USB Config: %d ms\n", timeout);
+ 111   3            // 输出USB状态寄存器值以便调试
+ 112   3            printf("USB_CTRL: %02X, UDEV_CTRL: %02X\n", USB_CTRL, UDEV_CTRL);
+ 113   3          }
+ 114   2        }
+ 115   1        
+ 116   1        if(!UsbConfig) {
+C51 COMPILER V9.59.0.0   MAIN                                                              01/17/2025 11:12:02 PAGE 3   
+
+ 117   2          printf("USB Enumeration Failed\n");
+ 118   2          while(1) {  // USB枚举失败
+ 119   3            mDelaymS(100);
+ 120   3          }
+ 121   2        }
+ 122   1        printf("USB Enumeration Success\n");
+ 123   1        
+ 124   1        while(1)
+ 125   1        {
+ 126   2      //    if(USART_RX_STA&0x8000)
+ 127   2      //    {   
+ 128   2      //      USART_RX_STA = 0; 
+ 129   2      //      for(num=0;num<64;num++)
+ 130   2      //      {
+ 131   2      //        CH554UART0SendByte(USART_RX_BUF[num]);
+ 132   2      //      }
+ 133   2      //    }
+ 134   2      //    if(UsbConfig)//��λ���򿪴���
+ 135   2      //    {
+ 136   2      //      if(USBByteCount)   //USB���ն˵�������
+ 137   2      //      {
+ 138   2      //        if(!Endp2Busy)   //�˵㲻��æ�����к�ĵ�һ�����ݣ�ֻ������
+             -�����ϴ���
+ 139   2      //        {
+ 140   2      //          lenth = USBByteCount;   
+ 141   2      //          //д�ϴ��˵�
+ 142   2      //          memcpy(Ep2Buffer+MAX_PACKET_SIZE,Ep2Buffer,lenth);
+ 143   2      //          UEP2_T_LEN = lenth;                                                    //Ԥʹ�÷��ͳ���
+             -һ��Ҫ���
+ 144   2      //          UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;            //Ӧ��ACK
+ 145   2      //          Endp2Busy = 1;
+ 146   2      //          UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_R_RES | UEP_R_RES_ACK;//�����������꣬��
+             -���������޸���Ӧ��ʽ
+ 147   2      //          USBByteCount= 0;        
+ 148   2      //        }       
+ 149   2      //      }
+ 150   2      //    }
+ 151   2          DAP_Thread();
+ 152   2              if (USBByteCount)
+ 153   2              {
+ 154   3            lenth = USBByteCount;
+ 155   3            CH554UART0SendByte(0x67);
+ 156   3            CH554UART0SendByte(lenth);
+ 157   3            for(num=0;num<lenth;num++)
+ 158   3            {
+ 159   4              CH554UART0SendByte(Ep2Buffer[num]);
+ 160   4            }
+ 161   3      //            CH554UART0SendByte(Ep2Buffer[USBBufOutPoint++]);
+ 162   3                  USBByteCount=0;
+ 163   3                  if (USBByteCount == 0)
+ 164   3                      UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_R_RES | UEP_R_RES_ACK;
+ 165   3              }
+ 166   2          if(USBD0)
+ 167   2          {
+ 168   3      //      Ep2Buffer[64] =   USBD0;
+ 169   3      //      UEP2_T_LEN = 1;                                                    //Ԥʹ�÷��ͳ���һ��
+             -��Ҫ���
+ 170   3      //      UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;            //Ӧ��ACK
+ 171   3      //      Endp2Busy = 1;
+ 172   3            
+ 173   3            CH554UART0SendByte(0x68);
+ 174   3            CH554UART0SendByte(1);
+C51 COMPILER V9.59.0.0   MAIN                                                              01/17/2025 11:12:02 PAGE 4   
+
+ 175   3            CH554UART0SendByte(USBD0);
+ 176   3            USBD0 = 0;
+ 177   3          }
+ 178   2          if(USART3_RX_STA&0x8000)
+ 179   2          {
+ 180   3            if (!Endp2Busy)
+ 181   3            {
+ 182   4              lenth = USART3_RX_STA&0X0FFF;
+ 183   4              if(lenth<64)
+ 184   4              {
+ 185   5                memcpy(Ep2Buffer+64,&USART3_RX_BUF[0],lenth);
+ 186   5                UEP2_T_LEN = lenth;                                                    //Ԥʹ�÷��ͳ���һ
+             -��Ҫ���
+ 187   5                UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;            //Ӧ��ACK
+ 188   5                Endp2Busy = 1;
+ 189   5                USART3_RX_STA = 0;
+ 190   5              }else if(lenth==64)
+ 191   4              {
+ 192   5                memcpy(Ep2Buffer+64,&USART3_RX_BUF[0],lenth);
+ 193   5                UEP2_T_LEN = lenth;                                                    //Ԥʹ�÷��ͳ���һ
+             -��Ҫ���
+ 194   5                UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;            //Ӧ��ACK
+ 195   5                Endp2Busy = 1;
+ 196   5                while(Endp2Busy); 
+ 197   5                UEP2_T_LEN = 0;                                                    //Ԥʹ�÷��ͳ���һ��
+             -��Ҫ���
+ 198   5                UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;            //Ӧ��ACK
+ 199   5                Endp2Busy = 1;
+ 200   5                USART3_RX_STA = 0;
+ 201   5              }else if(lenth>64)
+ 202   4              {
+ 203   5                for(num=0;num<(lenth/64);num++)
+ 204   5                {
+ 205   6                  memcpy(Ep2Buffer+64,&USART3_RX_BUF[num*64],64);
+ 206   6                  UEP2_T_LEN = 64;                                                    //Ԥʹ�÷��ͳ���һ�
+             -��Ҫ���
+ 207   6                  UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;            //Ӧ��ACK
+ 208   6                  Endp2Busy = 1;
+ 209   6                  while(Endp2Busy); 
+ 210   6                  UEP2_T_LEN = 0;                                                    //Ԥʹ�÷��ͳ���һ�
+             -�Ҫ���
+ 211   6                  lenth-=64;
+ 212   6                }
+ 213   5                memcpy(Ep2Buffer+64,&USART3_RX_BUF[num*64],lenth);
+ 214   5                UEP2_T_LEN = lenth;                                                    //Ԥʹ�÷��ͳ���һ
+             -��Ҫ���
+ 215   5                UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;            //Ӧ��ACK
+ 216   5                Endp2Busy = 1;
+ 217   5                USART3_RX_STA = 0;
+ 218   5              }
+ 219   4            }
+ 220   3          }   
+ 221   2            
+ 222   2      //    if(UartByteCount)
+ 223   2      //        Uart_Timeout++;
+ 224   2      //    if(!Endp2Busy)   //�˵㲻��æ�����к�ĵ�һ�����ݣ�ֻ������
+             -���ϴ���
+ 225   2      //    {
+ 226   2      //      lenth = UartByteCount;
+ 227   2      //      if(lenth>0)
+ 228   2      //      {
+ 229   2      //        if(lenth>39 || Uart_Timeout>100)
+C51 COMPILER V9.59.0.0   MAIN                                                              01/17/2025 11:12:02 PAGE 5   
+
+ 230   2      //        {   
+ 231   2      //          Uart_Timeout = 0;
+ 232   2      //          UartByteCount -= lenth;     
+ 233   2      //          //д�ϴ��˵�
+ 234   2      //          Uart_Output_Point+=lenth;
+ 235   2      //          if(Uart_Output_Point>=64)
+ 236   2      //            Uart_Output_Point = 0;            
+ 237   2      //          UEP2_T_LEN = lenth;                                                    //Ԥʹ�÷��ͳ���
+             -һ��Ҫ���
+ 238   2      //          UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;            //Ӧ��ACK
+ 239   2      //          Endp2Busy = 1;
+ 240   2      //        }
+ 241   2      //      }
+ 242   2      //    }
+ 243   2      //        if (USBByteCount)
+ 244   2      //        { 
+ 245   2      //      if (!Endp2Busy)
+ 246   2      //      {
+ 247   2      //        memcpy(Ep2Buffer+64,&Ep3Buffer[0],64);
+ 248   2      //        Uart_Output_Point+=64;
+ 249   2      //        UEP2_T_LEN = 64;                                                    //Ԥʹ�÷��ͳ���һ�
+             -��Ҫ���
+ 250   2      //        UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;            //Ӧ��ACK
+ 251   2      //        Endp2Busy = 1;
+ 252   2      //      }
+ 253   2      //        }   
+ 254   2          }
+ 255   1      }
+ 256          
+ 257          void Uart0_ISR(void) interrupt INT_NO_UART0
+ 258          {
+ 259   1        if(RI)  //?����??D??(?����?��?��?��y?Y��?D?��?0x0d 0x0a?��?2)
+ 260   1        {
+ 261   2          Res = SBUF; //?����??����?��?��?��y?Y
+ 262   2          if(((USART_RX_STA&0x8000)||(USART3_RX_STA&0x8000))==0)
+ 263   2          {
+ 264   3            if(((USART_RX_STA&0x4000)||(USART3_RX_STA&0x4000))==0)
+ 265   3            {
+ 266   4              if(Res==0x66)
+ 267   4              {
+ 268   5                USART_RX_STA|=0x4000;//?����?��???����
+ 269   5                Flag_3 = 1;
+ 270   5              }else if(Res==0x67)
+ 271   4              {
+ 272   5                USART3_RX_STA|=0x4000;//?����?��???����
+ 273   5                Flag_4 = 1;
+ 274   5              }else
+ 275   4              {
+ 276   5                USART_RX_STA = 0;
+ 277   5                USART3_RX_STA = 0;
+ 278   5              }
+ 279   4            }else if((((USART_RX_STA&0x4000))&&(~(USART3_RX_STA&0x4000))))
+ 280   3            {
+ 281   4              if(Flag_3)
+ 282   4              {
+ 283   5                D1_len = Res;
+ 284   5                Flag_3 = 0;
+ 285   5              }else
+ 286   4              {
+ 287   5                USART_RX_BUF[USART_RX_STA&0X0FFF]=Res ;
+ 288   5                USART_RX_STA++;
+ 289   5                if((USART_RX_STA&0x0FFF)==D1_len)USART_RX_STA|=0x8000;  //?����?����3����? 
+C51 COMPILER V9.59.0.0   MAIN                                                              01/17/2025 11:12:02 PAGE 6   
+
+ 290   5              }
+ 291   4            }else if((((~USART_RX_STA&0x4000))&&((USART3_RX_STA&0x4000))))
+ 292   3            {
+ 293   4              if(Flag_4)
+ 294   4              {
+ 295   5                D2_len = Res;
+ 296   5                Flag_4 = 0;
+ 297   5              }else
+ 298   4              {
+ 299   5                USART3_RX_BUF[USART3_RX_STA&0X0FFF]=Res ;
+ 300   5                USART3_RX_STA++;
+ 301   5                if((USART3_RX_STA&0x0FFF)==D2_len)USART3_RX_STA|=0x8000;  //?����?����3����? 
+ 302   5              }
+ 303   4            }
+ 304   3          }else if((((USART_RX_STA&0x8000))&&(~(USART3_RX_STA&0x8000))))
+ 305   2          {
+ 306   3            if((USART3_RX_STA&0x4000)==0)
+ 307   3            {
+ 308   4              if(Res==0x67)
+ 309   4              {
+ 310   5                USART3_RX_STA|=0x4000;//?����?��???����
+ 311   5                Flag_4 = 1;
+ 312   5              }else
+ 313   4              {
+ 314   5                USART_RX_STA = 0;
+ 315   5              }
+ 316   4            }else
+ 317   3            {
+ 318   4              if(Flag_4)
+ 319   4              {
+ 320   5                D2_len = Res;
+ 321   5                Flag_4 = 0;
+ 322   5              }else
+ 323   4              {
+ 324   5                USART3_RX_BUF[USART3_RX_STA&0X0FFF]=Res ;
+ 325   5                USART3_RX_STA++;
+ 326   5                if((USART3_RX_STA&0x0FFF)==D2_len)USART3_RX_STA|=0x8000;  //?����?����3����? 
+ 327   5              }
+ 328   4            }
+ 329   3          }else if(((~(USART_RX_STA&0x8000))&&((USART3_RX_STA&0x8000))))
+ 330   2          {
+ 331   3            if((USART_RX_STA&0x4000)==0)
+ 332   3            {
+ 333   4              if(Res==0x66)
+ 334   4              {
+ 335   5                USART_RX_STA|=0x4000;//?����?��???����
+ 336   5                Flag_3 = 1;
+ 337   5              }else
+ 338   4              {
+ 339   5                USART_RX_STA = 0;
+ 340   5              }
+ 341   4            }else
+ 342   3            {
+ 343   4              if(Flag_3)
+ 344   4              {
+ 345   5                D1_len = Res;
+ 346   5                Flag_3 = 0;
+ 347   5              }else
+ 348   4              {
+ 349   5                USART_RX_BUF[USART_RX_STA&0X0FFF]=Res ;
+ 350   5                USART_RX_STA++;
+ 351   5                if((USART_RX_STA&0x0FFF)==D1_len)USART_RX_STA|=0x8000;  //?����?����3����? 
+C51 COMPILER V9.59.0.0   MAIN                                                              01/17/2025 11:12:02 PAGE 7   
+
+ 352   5              }
+ 353   4            }
+ 354   3          }
+ 355   2          RI = 0;
+ 356   2        } 
+ 357   1      }
+ 358          
+ 359          /**************************** END *************************************/
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2088    ----
+   CONSTANT SIZE    =    154    ----
+   XDATA SIZE       =    222    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =      3    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

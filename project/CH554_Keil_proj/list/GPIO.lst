@@ -1,0 +1,148 @@
+C51 COMPILER V9.59.0.0   GPIO                                                              01/17/2025 11:12:02 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE GPIO
+OBJECT MODULE PLACED IN .\obj\GPIO.obj
+COMPILER INVOKED BY: E:\Keil_v5_mdk\C51\BIN\C51.EXE Public\GPIO.C LARGE OPTIMIZE(0,SPEED) BROWSE DEBUG OBJECTEXTEND PRIN
+                    -T(.\list\GPIO.lst) TABS(2) OBJECT(.\obj\GPIO.obj)
+
+line level    source
+
+   1          
+   2          /********************************** (C) COPYRIGHT *******************************
+   3          * File Name          : GPIO.C
+   4          * Author             : WCH
+   5          * Version            : V1.0
+   6          * Date               : 2017/01/20
+   7          * Description        : CH554 IO 设置接口函数和GPIO中断函数  
+   8          *******************************************************************************/
+   9          
+  10          #include "CH554.H"
+  11          #include "DEBUG.H"
+  12          #include "GPIO.H"
+  13          #include "stdio.h"
+  14          
+  15          #pragma  NOAREGS
+  16          
+  17          /*******************************************************************************
+  18          * Function Name  : Port1Cfg()
+  19          * Description    : 端口1配置
+  20          * Input          : Mode  0 = 浮空输入，无上拉
+  21                                   1 = 推挽输入输出
+  22                                   2 = 开漏输入输出，无上拉
+  23                                   3 = 类51模式，开漏输入输出，有上拉，内部电路可以加速由低到高的电平爬升   
+  24                             ,UINT8 Pin (0-7)                      
+  25          * Output         : None
+  26          * Return         : None
+  27          *******************************************************************************/
+  28          void Port1Cfg(UINT8 Mode,UINT8 Pin)
+  29          {
+  30   1        switch(Mode){
+  31   2          case 0:
+  32   2            P1_MOD_OC = P1_MOD_OC & ~(1<<Pin);
+  33   2            P1_DIR_PU = P1_DIR_PU & ~(1<<Pin);  
+  34   2            break;
+  35   2          case 1:
+  36   2            P1_MOD_OC = P1_MOD_OC & ~(1<<Pin);
+  37   2            P1_DIR_PU = P1_DIR_PU | (1<<Pin);       
+  38   2            break;    
+  39   2          case 2:
+  40   2            P1_MOD_OC = P1_MOD_OC | (1<<Pin);
+  41   2            P1_DIR_PU = P1_DIR_PU & ~(1<<Pin);        
+  42   2            break;    
+  43   2          case 3:
+  44   2            P1_MOD_OC = P1_MOD_OC | (1<<Pin);
+  45   2            P1_DIR_PU = P1_DIR_PU | (1<<Pin);     
+  46   2            break;
+  47   2          default:
+  48   2            break;      
+  49   2        }
+  50   1      }
+  51          
+  52          /*******************************************************************************
+  53          * Function Name  : Port3Cfg()
+  54          * Description    : 端口3配置
+C51 COMPILER V9.59.0.0   GPIO                                                              01/17/2025 11:12:02 PAGE 2   
+
+  55          * Input          : Mode  0 = 浮空输入，无上拉
+  56                                   1 = 推挽输入输出
+  57                                   2 = 开漏输入输出，无上拉
+  58                                   3 = 类51模式，开漏输入输出，有上拉，内部电路可以加速由低到高的电平爬升   
+  59                             ,UINT8 Pin (0-7)                      
+  60          * Output         : None
+  61          * Return         : None
+  62          *******************************************************************************/
+  63          void Port3Cfg(UINT8 Mode,UINT8 Pin)
+  64          {
+  65   1        switch(Mode){
+  66   2          case 0:
+  67   2            P3_MOD_OC = P3_MOD_OC & ~(1<<Pin);
+  68   2            P3_DIR_PU = P3_DIR_PU & ~(1<<Pin);  
+  69   2            break;
+  70   2          case 1:
+  71   2            P3_MOD_OC = P3_MOD_OC & ~(1<<Pin);
+  72   2            P3_DIR_PU = P3_DIR_PU | (1<<Pin);       
+  73   2            break;    
+  74   2          case 2:
+  75   2            P3_MOD_OC = P3_MOD_OC | (1<<Pin);
+  76   2            P3_DIR_PU = P3_DIR_PU & ~(1<<Pin);        
+  77   2            break;    
+  78   2          case 3:
+  79   2            P3_MOD_OC = P3_MOD_OC | (1<<Pin);
+  80   2            P3_DIR_PU = P3_DIR_PU | (1<<Pin);     
+  81   2            break;
+  82   2          default:
+  83   2            break;      
+  84   2        }
+  85   1      }
+  86          
+  87          /*******************************************************************************
+  88          * Function Name  : GPIOInterruptCfg()
+  89          * Description    : GPIO中断配置
+  90          * Input          : None                  
+  91          * Output         : None
+  92          * Return         : None
+  93          *******************************************************************************/
+  94          void GPIOInterruptCfg()
+  95          {
+  96   1         GPIO_IE &= ~bIE_IO_EDGE;                                                    //高/低电平触发
+  97   1      //    GPIO_IE |= bIE_IO_EDGE;                                                  //上升/下降触发  
+  98   1      //    GPIO_IE |= bIE_RXD1_LO;                                                     //RXD1低电平或下降沿触发
+  99   1         GPIO_IE |= bIE_P1_5_LO | bIE_P1_4_LO | bIE_P1_3_LO | bIE_RST_HI;            
+ 100   1         //P15\P14\P13低电平触发；RST高电平触发
+ 101   1      //    GPIO_IE |= bIE_P3_1_LO;                                                     //P31低电平或下降沿触发
+ 102   1      //    GPIO_IE |= bIE_RXD0_LO;                                                     //RXD0低电平或下降沿触发
+             -  
+ 103   1         IE_GPIO  = 1;                                                               //GPIO中断开启
+ 104   1      }
+ 105          
+ 106          #ifdef GPIO_INTERRUPT
+ 107          /*******************************************************************************
+ 108          * Function Name  : GPIOInterrupt(void)
+ 109          * Description    : GPIO 中断服务程序
+ 110          *******************************************************************************/
+ 111          void  GPIOInterrupt( void ) interrupt INT_NO_GPIO  using 1                      //GPIO中断服务程序,使用寄存
+             -器组1
+ 112          { 
+ 113   1      #ifdef DE_PRINTF
+ 114   1            printf("GPIO_STATUS: %02x\n",(UINT16)(PIN_FUNC&bIO_INT_ACT));             
+C51 COMPILER V9.59.0.0   GPIO                                                              01/17/2025 11:12:02 PAGE 3   
+
+ 115   1      #endif
+ 116   1      }
+ 117          #endif
+ 118          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    463    ----
+   CONSTANT SIZE    =     19    ----
+   XDATA SIZE       =      4    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
