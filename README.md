@@ -4,9 +4,7 @@
 
 [toc]
 
-## 演示视频
-
-<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=113722613829834&bvid=BV1NECJYyEaa&cid=25738353324&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+## B站演示视频：[【（开源）基于ESP32S3立创开发板的多功能调试器（STM32 / ESP32 / Arduino调试和烧录）】 ](https://www.bilibili.com/video/BV1NECJYyEaa/?share_source=copy_web&vd_source=be68408916a9ed6715c50a7c23ca43b6)
 
 ## 项目简介
 
