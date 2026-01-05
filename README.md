@@ -150,7 +150,7 @@ UART接线：
 
 3.无线模式(SWD/JTAG)
 
- 	单机无线模式下keil需要搭配开源上位机`elaphureLink`（`elaphureLink`不支持JTAG协议）或者USBIP（支持SWD/JTAG协议）来使用。双击`elaphureLink.Wpf.exe`打开软件，第一次使用需要安装keil驱动，由于代码已经设置好了mDNS，因此无需知道设备IP也可直接连接
+​	单机无线模式下keil需要搭配开源上位机`elaphureLink`（`elaphureLink`不支持JTAG协议）或者USBIP（支持SWD/JTAG协议）来使用。双击`elaphureLink.Wpf.exe`打开软件，第一次使用需要安装keil驱动，由于代码已经设置好了mDNS，因此无需知道设备IP也可直接连接
 
 ![image-20241226112001788](https://s2.loli.net/2024/12/26/nx961E3BStyPe5u.png)
 
